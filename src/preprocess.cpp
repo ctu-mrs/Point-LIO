@@ -109,15 +109,16 @@ void Preprocess::avia_handler(const livox_ros_driver2::CustomMsg::ConstPtr &msg)
       valid_num ++;
       if (valid_num % point_filter_num == 0)
       {
+        // std::cout<<"msg->points[i].reflectivity="<<msg->points[i].reflectivity<<std::endl;
         pl_full[i].x = msg->points[i].x;
         pl_full[i].y = msg->points[i].y;
         pl_full[i].z = msg->points[i].z;
         pl_full[i].intensity = msg->points[i].reflectivity;
         pl_full[i].curvature = msg->points[i].offset_time / float(1000000); // use curvature as time of each laser points, curvature unit: ms
-
+        // std::cout<<"pl_full[i].intensity="<<msg->points[i].reflectivity<<std::endl;
         if (i==0) pl_full[i].curvature = fabs(pl_full[i].curvature) < 1.0 ? pl_full[i].curvature : 0.0;
         else pl_full[i].curvature = fabs(pl_full[i].curvature - pl_full[i-1].curvature) < 1.0 ? pl_full[i].curvature : pl_full[i-1].curvature + 0.004166667f;
-
+        // std::cout<<"Curvature="<<pl_full[i].curvature<<std::endl;
         if(((abs(pl_full[i].x - pl_full[i-1].x) > 1e-7) 
             || (abs(pl_full[i].y - pl_full[i-1].y) > 1e-7)
             || (abs(pl_full[i].z - pl_full[i-1].z) > 1e-7))
@@ -130,6 +131,49 @@ void Preprocess::avia_handler(const livox_ros_driver2::CustomMsg::ConstPtr &msg)
   }
 
 }
+
+void Preprocess::unreal_lidar_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
+{
+  pl_surf.clear();
+  // pl_corn.clear();
+  // pl_full.clear();
+  pcl::PointCloud<unreal_lidar_ros::Point> pl_orig;
+  /*TODO: change this function with a custom handler*/
+  // pcl::fromROSMsg(*msg, pl_orig);
+  int plsize = pl_orig.size();
+  // pl_corn.reserve(plsize);
+  pl_surf.reserve(plsize);
+  
+  
+  double time_stamp = msg->header.stamp.toSec();
+  // cout << "===================================" << endl;
+  // printf("Pt size = %d, N_SCANS = %d\r\n", plsize, N_SCANS);
+  for (int i = 0; i < pl_orig.points.size(); i++)
+  {
+    if (i % point_filter_num != 0) continue; //I take a point of the pointcloud every point_filter_num times
+
+    double range = pl_orig.points[i].x * pl_orig.points[i].x + pl_orig.points[i].y * pl_orig.points[i].y + pl_orig.points[i].z * pl_orig.points[i].z;
+    
+    if (range < (blind * blind)) continue; //chack if the points are beyond a certain threshold (probably the drone frame)
+    
+    Eigen::Vector3d pt_vec; //not used
+    PointType added_pt;
+    added_pt.x = pl_orig.points[i].x;
+    added_pt.y = pl_orig.points[i].y;
+    added_pt.z = pl_orig.points[i].z;
+    added_pt.intensity = pl_orig.points[i].intensity;
+    added_pt.normal_x = 0;
+    added_pt.normal_y = 0;
+    added_pt.normal_z = 0;
+    //What is t?
+    //added_pt.curvature = pl_orig.points[i].t * time_unit_scale; // curvature unit: ms (The curvature of a point represents how much the surface at that point deviates from being flat)
+    // std::cout<<"Curvature="<<added_pt.curvature<<std::endl;
+    // std::cout<<"pl_orig.points[i].t="<<pl_orig.points[i].t<<std::endl;
+    pl_surf.points.push_back(added_pt);
+  }
+  
+}
+
 
 void Preprocess::oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
@@ -148,13 +192,13 @@ void Preprocess::oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
   // printf("Pt size = %d, N_SCANS = %d\r\n", plsize, N_SCANS);
   for (int i = 0; i < pl_orig.points.size(); i++)
   {
-    if (i % point_filter_num != 0) continue;
+    if (i % point_filter_num != 0) continue; //I take a point of the pointcloud every point_filter_num times
 
     double range = pl_orig.points[i].x * pl_orig.points[i].x + pl_orig.points[i].y * pl_orig.points[i].y + pl_orig.points[i].z * pl_orig.points[i].z;
     
-    if (range < (blind * blind)) continue;
+    if (range < (blind * blind)) continue; //chack if the points are beyond a certain threshold (probably the drone frame)
     
-    Eigen::Vector3d pt_vec;
+    Eigen::Vector3d pt_vec; //not used
     PointType added_pt;
     added_pt.x = pl_orig.points[i].x;
     added_pt.y = pl_orig.points[i].y;
@@ -163,8 +207,10 @@ void Preprocess::oust64_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
     added_pt.normal_x = 0;
     added_pt.normal_y = 0;
     added_pt.normal_z = 0;
-    added_pt.curvature = pl_orig.points[i].t * time_unit_scale; // curvature unit: ms
-
+    //What is t?
+    added_pt.curvature = pl_orig.points[i].t * time_unit_scale; // curvature unit: ms (The curvature of a point represents how much the surface at that point deviates from being flat)
+    // std::cout<<"Curvature="<<added_pt.curvature<<std::endl;
+    // std::cout<<"pl_orig.points[i].t="<<pl_orig.points[i].t<<std::endl;
     pl_surf.points.push_back(added_pt);
   }
   
@@ -366,6 +412,7 @@ void Preprocess::hesai_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
 void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &types)
 {
+  std::cout<<"I'm getting features 1!!\n";
   int plsize = pl.size();
   int plsize2;
   if(plsize == 0)
@@ -378,6 +425,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
   while(types[head].range < blind)
   {
     head++;
+    std::cout<<"I'm getting features 2!!\n";
   }
 
   // Surf
@@ -392,7 +440,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
   int plane_type;
 
   for(uint i=head; i<plsize2; i++)
-  {
+  { std::cout<<"I'm getting features 3!!\n";
     if(types[i].range < blind)
     {
       continue;
@@ -401,7 +449,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
     i2 = i;
 
     plane_type = plane_judge(pl, types, i, i_nex, curr_direct);
-    
+    // plane type: 2 - 0 - 1
     if(plane_type == 1)
     {
       for(uint j=i; j<=i_nex; j++)
@@ -446,7 +494,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
 
   plsize2 = plsize > 3 ? plsize - 3 : 0;
   for(uint i=head+3; i<plsize2; i++)
-  {
+  { std::cout<<"I'm getting features 4!!\n";
     if(types[i].range<blind || types[i].ftype>=Real_Plane)
     {
       continue;
@@ -461,7 +509,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
     Eigen::Vector3d vecs[2];
 
     for(int j=0; j<2; j++)
-    {
+    { std::cout<<"I'm getting features 5!!\n";
       int m = -1;
       if(j == 1)
       {
@@ -543,7 +591,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
   plsize2 = plsize-1;
   double ratio;
   for(uint i=head+1; i<plsize2; i++)
-  {
+  { std::cout<<"I'm getting features 6!!\n";
     if(types[i].range<blind || types[i-1].range<blind || types[i+1].range<blind)
     {
       continue;
@@ -582,7 +630,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
 
   int last_surface = -1;
   for(uint j=head; j<plsize; j++)
-  {
+  { std::cout<<"I'm getting features 7!!\n";
     if(types[j].ftype==Poss_Plane || types[j].ftype==Real_Plane)
     {
       if(last_surface == -1)
@@ -633,7 +681,7 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
 }
 
 void Preprocess::pub_func(PointCloudXYZI &pl, const ros::Time &ct)
-{
+{ std::cout<<"I'm publishing!!\n";
   pl.height = 1; pl.width = pl.size();
   sensor_msgs::PointCloud2 output;
   pcl::toROSMsg(pl, output);
