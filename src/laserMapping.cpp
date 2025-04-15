@@ -75,6 +75,7 @@ sensor_msgs::Imu imu_last, imu_next;
 sensor_msgs::Imu::ConstPtr imu_last_ptr;
 nav_msgs::Path path;
 nav_msgs::Odometry odomAftMapped;
+geometry_msgs::Vector3Stamped accAftMapped;
 geometry_msgs::PoseStamped msg_body_pose;
 
 // Frame names
@@ -683,7 +684,43 @@ void set_posestamp(T & out)
     }
 }
 
-void publish_odometry(const ros::Publisher & pubOdomAftMapped)
+template<typename T>
+void set_odomtwist(T & out)
+{
+    // velocities are in the mapping/world frame
+    if (!use_imu_as_input)
+    {
+        out.linear.x = kf_output.x_.vel(0);
+        out.linear.y = kf_output.x_.vel(1);
+        out.linear.z = kf_output.x_.vel(2);
+
+        out.angular.x = kf_output.x_.omg(0);
+        out.angular.y = kf_output.x_.omg(1);
+        out.angular.z = kf_output.x_.omg(2);
+    }
+    else
+    {
+        out.linear.x = kf_input.x_.vel(0);
+        out.linear.y = kf_input.x_.vel(1);
+        out.linear.z = kf_input.x_.vel(2);
+    }
+}
+
+void set_acc(geometry_msgs::Vector3 & out)
+{
+  
+    // acceleration is in body frame, but with biases!!
+    // TODO: check frame of biases and if they are in body, subtract!
+    if (!use_imu_as_input)
+    {
+        out.x = kf_output.x_.acc(0);
+        out.y = kf_output.x_.acc(1);
+        out.z = kf_output.x_.acc(2);
+
+    }
+}
+
+void publish_odometry(const ros::Publisher & pubOdomAftMapped, const ros::Publisher & pubAccAftMapped)
 {
     odomAftMapped.header.frame_id = init_frame;
     odomAftMapped.child_frame_id = odom_frame;
@@ -696,8 +733,13 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped)
         odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time);
     }
     set_posestamp(odomAftMapped.pose.pose);
+    set_odomtwist(odomAftMapped.twist.twist);
+
+    accAftMapped.header = odomAftMapped.header;
+    set_acc(accAftMapped.vector);
     
     pubOdomAftMapped.publish(odomAftMapped);
+    pubAccAftMapped.publish(accAftMapped);
 
     static tf::TransformBroadcaster br;
     tf::Transform                   transform;
@@ -798,9 +840,9 @@ int main(int argc, char** argv)
 
     /*** ROS subscribe initialization ***/
     ros::Subscriber sub_pcl = p_pre->lidar_type == AVIA ? \
-        nh.subscribe(lid_topic, 200000, livox_pcl_cbk) : \
-        nh.subscribe(lid_topic, 200000, standard_pcl_cbk);
-    ros::Subscriber sub_imu = nh.subscribe(imu_topic, 200000, imu_cbk);
+        nh.subscribe(lid_topic, 1, livox_pcl_cbk) : \
+        nh.subscribe(lid_topic, 1, standard_pcl_cbk);
+    ros::Subscriber sub_imu = nh.subscribe(imu_topic, 100, imu_cbk);
     ros::Publisher pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2>
             ("/cloud_registered", 100000);
     ros::Publisher pubLaserCloudFullRes_body = nh.advertise<sensor_msgs::PointCloud2>
@@ -810,7 +852,9 @@ int main(int argc, char** argv)
     ros::Publisher pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>
             ("/Laser_map", 100000);
     ros::Publisher pubOdomAftMapped = nh.advertise<nav_msgs::Odometry> 
-            ("/aft_mapped_to_init", 100000);
+            ("/aft_mapped_to_init", 1);
+    ros::Publisher pubAccAftMapped = nh.advertise<geometry_msgs::Vector3Stamped> 
+            ("/linear_acceleration", 1);
     ros::Publisher pubPath          = nh.advertise<nav_msgs::Path> 
             ("/path", 100000);
     // ros::Publisher plane_pub = nh.advertise<visualization_msgs::Marker>
@@ -1125,7 +1169,7 @@ int main(int argc, char** argv)
                     {
                         /******* Publish odometry *******/
 
-                        publish_odometry(pubOdomAftMapped);
+                        publish_odometry(pubOdomAftMapped, pubAccAftMapped);
                         if (runtime_pos_log)
                         {
                             state_out = kf_output.x_;
@@ -1285,7 +1329,7 @@ int main(int argc, char** argv)
                     {
                         /******* Publish odometry *******/
 
-                        publish_odometry(pubOdomAftMapped);
+                        publish_odometry(pubOdomAftMapped, pubAccAftMapped);
                         if (runtime_pos_log)
                         {
                             state_in = kf_input.x_;
@@ -1311,7 +1355,7 @@ int main(int argc, char** argv)
             /******* Publish odometry downsample *******/
             if (!publish_odometry_without_downsample)
             {
-                publish_odometry(pubOdomAftMapped);
+                publish_odometry(pubOdomAftMapped, pubAccAftMapped);
             }
 
             /*** add the feature points to map kdtree ***/

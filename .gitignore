@@ -1,1 +1,4 @@
 *.pcd
+Log
+*.swp
+*.swo

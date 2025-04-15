@@ -60,6 +60,7 @@
       <remap from="/cloud_effected" to="~cloud_effected" />
       <remap from="/Laser_map" to="~laser_map" />
       <remap from="/aft_mapped_to_init" to="~odom" />
+      <remap from="/linear_acceleration" to="~acceleration" />
       <remap from="/path" to="~path" />
       <remap from="/planner_normal" to="~planner_normal" />
   
