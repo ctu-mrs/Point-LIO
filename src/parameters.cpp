@@ -26,6 +26,7 @@ std::vector<double> extrinT;
 std::vector<double> extrinR;
 bool   runtime_pos_log, pcd_save_en, path_en, extrinsic_est_en = true;
 bool   scan_pub_en, scan_body_pub_en;
+double path_diff_t, path_diff_R;
 shared_ptr<Preprocess> p_pre;
 double time_lag_imu_to_lidar = 0.0;
 std::string uav_name;
@@ -81,7 +82,9 @@ void readParameters(ros::NodeHandle &nh)
   nh.param<std::vector<double>>("mapping/extrinsic_T", extrinT, std::vector<double>());
   nh.param<std::vector<double>>("mapping/extrinsic_R", extrinR, std::vector<double>());
   nh.param<bool>("odometry/publish_odometry_without_downsample", publish_odometry_without_downsample, false);
-  nh.param<bool>("publish/path_en",path_en, true);
+  nh.param<bool>("publish/path/enable", path_en, true);
+  nh.param<double>("publish/path/diff_t", path_diff_t, 0.1);
+  nh.param<double>("publish/path/diff_R", path_diff_R, 0.1);
   nh.param<bool>("publish/scan_publish_en",scan_pub_en,1);
   nh.param<bool>("publish/scan_bodyframe_pub_en",scan_body_pub_en,1);
   nh.param<bool>("runtime_pos_log_enable", runtime_pos_log, 0);

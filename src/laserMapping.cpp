@@ -77,11 +77,12 @@ nav_msgs::Path path;
 nav_msgs::Odometry odomAftMapped;
 geometry_msgs::Vector3Stamped accAftMapped;
 geometry_msgs::PoseStamped msg_body_pose;
+geometry_msgs::Pose        msg_body_pose_prev;
 
 // Frame names
 string init_frame;
 string odom_frame;
-
+string lidar_frame;
 
 void SigHandle(int sig)
 {
@@ -219,6 +220,9 @@ void lasermap_fov_segment()
 void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg) 
 {
     mtx_buffer.lock();
+    if (scan_count == 0) {
+      lidar_frame = msg->header.frame_id; 
+    }
     scan_count ++;
     double preprocess_start_time = omp_get_wtime();
     if (msg->header.stamp.toSec() < last_timestamp_lidar)
@@ -301,8 +305,13 @@ void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
 void livox_pcl_cbk(const livox_ros_driver2::CustomMsg::ConstPtr &msg) 
 {
+
     mtx_buffer.lock();
     double preprocess_start_time = omp_get_wtime();
+
+    if (scan_count == 0) {
+      lidar_frame = msg->header.frame_id; 
+    }
     scan_count ++;
     if (msg->header.stamp.toSec() < last_timestamp_lidar)
     {
@@ -581,8 +590,7 @@ void publish_frame_world(const ros::Publisher & pubLaserCloudFullRes)
 {
     if (scan_pub_en)
     {
-        PointCloudXYZI::Ptr laserCloudFullRes(feats_down_body);
-        int size = laserCloudFullRes->points.size();
+        const int size = feats_down_world->points.size();
 
         PointCloudXYZI::Ptr   laserCloudWorld(new PointCloudXYZI(size, 1));
         
@@ -610,7 +618,7 @@ void publish_frame_world(const ros::Publisher & pubLaserCloudFullRes)
     /* 2. noted that pcd save will influence the real-time performences **/
     if (pcd_save_en)
     {
-        int size = feats_down_world->points.size();
+        const int size = feats_down_world->points.size();
         PointCloudXYZI::Ptr   laserCloudWorld(new PointCloudXYZI(size, 1));
 
         for (int i = 0; i < size; i++)
@@ -640,8 +648,8 @@ void publish_frame_world(const ros::Publisher & pubLaserCloudFullRes)
 
 void publish_frame_body(const ros::Publisher & pubLaserCloudFull_body)
 {
-    int size = feats_undistort->points.size();
-    PointCloudXYZI::Ptr laserCloudIMUBody(new PointCloudXYZI(size, 1));
+    const int size = feats_undistort->points.size();
+    const PointCloudXYZI::Ptr laserCloudIMUBody(new PointCloudXYZI(size, 1));
 
     for (int i = 0; i < size; i++)
     {
@@ -652,7 +660,7 @@ void publish_frame_body(const ros::Publisher & pubLaserCloudFull_body)
     sensor_msgs::PointCloud2 laserCloudmsg;
     pcl::toROSMsg(*laserCloudIMUBody, laserCloudmsg);
     laserCloudmsg.header.stamp = ros::Time().fromSec(lidar_end_time);
-    laserCloudmsg.header.frame_id = "body";
+    laserCloudmsg.header.frame_id = lidar_frame;
     pubLaserCloudFull_body.publish(laserCloudmsg);
     publish_count -= PUBFRAME_PERIOD;
 }
@@ -755,19 +763,25 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped, const ros::Publis
     br.sendTransform( tf::StampedTransform( transform, odomAftMapped.header.stamp, init_frame, odom_frame ) );
 }
 
-void publish_path(const ros::Publisher pubPath)
+void publish_path(const ros::Publisher &pubPath)
 {
-    set_posestamp(msg_body_pose.pose);
-    // msg_body_pose.header.stamp = ros::Time::now();
-    msg_body_pose.header.stamp = ros::Time().fromSec(lidar_end_time);
-    msg_body_pose.header.frame_id = init_frame;
-    static int jjj = 0;
-    jjj++;
-    // if (jjj % 2 == 0) // if path is too large, the rvis will crash
-    {
-        path.poses.emplace_back(msg_body_pose);
-        pubPath.publish(path);
-    }
+  set_posestamp(msg_body_pose.pose);
+
+  if (scan_count == 1) {
+    msg_body_pose_prev = msg_body_pose.pose;
+  }
+  // TODO: if distance between prev and current is larger than path_diff_t and path_diff_R, then publish
+  /* else if ( dist() ) { */
+  /* } */
+
+  // msg_body_pose.header.stamp = ros::Time::now();
+  msg_body_pose.header.stamp    = ros::Time().fromSec(lidar_end_time);
+  msg_body_pose.header.frame_id = init_frame;
+  path.poses.emplace_back(msg_body_pose);
+
+  if (pubPath.getNumSubscribers() > 0) {
+    pubPath.publish(path);
+  }
 }        
 
 int main(int argc, char** argv)
@@ -844,19 +858,19 @@ int main(int argc, char** argv)
         nh.subscribe(lid_topic, 1, standard_pcl_cbk);
     ros::Subscriber sub_imu = nh.subscribe(imu_topic, 100, imu_cbk);
     ros::Publisher pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2>
-            ("/cloud_registered", 100000);
+            ("/cloud_registered", 1);
     ros::Publisher pubLaserCloudFullRes_body = nh.advertise<sensor_msgs::PointCloud2>
-            ("/cloud_registered_body", 100000);
+            ("/cloud_registered_body", 1);
     // ros::Publisher pubLaserCloudEffect  = nh.advertise<sensor_msgs::PointCloud2>
             // ("/cloud_effected", 100000);
     ros::Publisher pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>
-            ("/Laser_map", 100000);
+            ("/laser_map", 1);
     ros::Publisher pubOdomAftMapped = nh.advertise<nav_msgs::Odometry> 
             ("/aft_mapped_to_init", 1);
     ros::Publisher pubAccAftMapped = nh.advertise<geometry_msgs::Vector3Stamped> 
             ("/linear_acceleration", 1);
     ros::Publisher pubPath          = nh.advertise<nav_msgs::Path> 
-            ("/path", 100000);
+            ("/path", 1);
     // ros::Publisher plane_pub = nh.advertise<visualization_msgs::Marker>
             // ("/planner_normal", 1000);
 //------------------------------------------------------------------------------------------------------
@@ -1368,9 +1382,9 @@ int main(int argc, char** argv)
 
             t5 = omp_get_wtime();
             /******* Publish points *******/
-            if (path_en)                         publish_path(pubPath);
-            if (scan_pub_en || pcd_save_en)      publish_frame_world(pubLaserCloudFullRes);
-            if (scan_pub_en && scan_body_pub_en) publish_frame_body(pubLaserCloudFullRes_body);
+            if (path_en)                     publish_path(pubPath);
+            if (scan_pub_en || pcd_save_en)  publish_frame_world(pubLaserCloudFullRes);
+            if (scan_body_pub_en)            publish_frame_body(pubLaserCloudFullRes_body);
             
             /*** Debug variables Logging ***/
             if (runtime_pos_log)

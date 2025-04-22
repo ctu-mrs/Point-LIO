@@ -47,8 +47,12 @@ odometry:
     publish_odometry_without_downsample: false
 
 publish:
-    path_en: true                 # false: close the path output
-    scan_publish_en: true         # false: close all the point cloud output
+    path:
+      enable: true # false: close the path output
+      # TODO: use these values in code
+      diff_t: 0.01 # (m) publish when translation has changed by this value
+      diff_R: 0.01 # (rad) publish when one of the Euler angles has changed by this value
+    scan_publish_en: false       # false: close all the point cloud output
     scan_bodyframe_pub_en: true  # true: output the point cloud scans in IMU-body-frame
 
 pcd_save:
