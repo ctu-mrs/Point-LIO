@@ -21,6 +21,8 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Matrix3x3.h>
 #include <geometry_msgs/Vector3.h>
 #include <livox_ros_driver2/CustomMsg.h>
 #include "parameters.h"
@@ -763,6 +765,33 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped, const ros::Publis
     br.sendTransform( tf::StampedTransform( transform, odomAftMapped.header.stamp, init_frame, odom_frame ) );
 }
 
+double point_distance(const geometry_msgs::Point &A, const geometry_msgs::Point &B) {
+  return std::sqrt( std::pow(A.x - B.x, 2) + std::pow(A.y - B.y, 2) + std::pow(A.z - B.z, 2));
+}
+
+double max_angular_distance(const geometry_msgs::Quaternion &q_from, const geometry_msgs::Quaternion &q_to) {
+  // gets max value of RPY angles
+
+  tf2::Quaternion qF, qT;
+  qF.setX(q_from.x);
+  qF.setY(q_from.y);
+  qF.setZ(q_from.z);
+  qF.setW(q_from.w);
+
+  qT.setX(q_to.x);
+  qT.setY(q_to.y);
+  qT.setZ(q_to.z);
+  qT.setW(q_to.w);
+
+  // Get rotation from->to
+  const tf2::Quaternion qF2T = qT * qF.inverse();
+
+  // Convert to Euler
+  double roll, pitch, yaw;
+  tf2::Matrix3x3(qF2T).getRPY(roll, pitch, yaw);
+  return std::fmax(yaw, std::fmax(roll, pitch));
+}
+
 void publish_path(const ros::Publisher &pubPath)
 {
   set_posestamp(msg_body_pose.pose);
@@ -770,19 +799,23 @@ void publish_path(const ros::Publisher &pubPath)
   if (scan_count == 1) {
     msg_body_pose_prev = msg_body_pose.pose;
   }
-  // TODO: if distance between prev and current is larger than path_diff_t and path_diff_R, then publish
-  /* else if ( dist() ) { */
-  /* } */
+  else if ( 
+      point_distance(msg_body_pose_prev.position, msg_body_pose.pose.position) < path_diff_t &&\
+      max_angular_distance(msg_body_pose_prev.orientation, msg_body_pose_prev.orientation) < path_diff_R ) {
+    return;
+  }
 
   // msg_body_pose.header.stamp = ros::Time::now();
   msg_body_pose.header.stamp    = ros::Time().fromSec(lidar_end_time);
   msg_body_pose.header.frame_id = init_frame;
   path.poses.emplace_back(msg_body_pose);
 
+  msg_body_pose_prev = msg_body_pose.pose;
+
   if (pubPath.getNumSubscribers() > 0) {
     pubPath.publish(path);
   }
-}        
+} 
 
 int main(int argc, char** argv)
 {

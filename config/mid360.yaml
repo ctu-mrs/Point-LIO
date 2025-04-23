@@ -49,7 +49,6 @@ odometry:
 publish:
     path:
       enable: true # false: close the path output
-      # TODO: use these values in code
       diff_t: 0.01 # (m) publish when translation has changed by this value
       diff_R: 0.01 # (rad) publish when one of the Euler angles has changed by this value
     scan_publish_en: false       # false: close all the point cloud output
