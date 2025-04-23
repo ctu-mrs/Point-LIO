@@ -307,7 +307,6 @@ void standard_pcl_cbk(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
 void livox_pcl_cbk(const livox_ros_driver2::CustomMsg::ConstPtr &msg) 
 {
-
     mtx_buffer.lock();
     double preprocess_start_time = omp_get_wtime();
 
@@ -570,32 +569,36 @@ void map_incremental()
 
 void publish_init_kdtree(const ros::Publisher & pubLaserCloudFullRes)
 {
-    int size_init_ikdtree = ikdtree.size();
-    PointCloudXYZI::Ptr   laserCloudInit(new PointCloudXYZI(size_init_ikdtree, 1));
+
+  PointVector().swap(ikdtree.PCL_Storage);
+  ikdtree.flatten(ikdtree.Root_Node, ikdtree.PCL_Storage, NOT_RECORD);
+
+  if (pubLaserCloudFullRes.getNumSubscribers() > 0) {
+
+    const int size_init_ikdtree = ikdtree.size();
+    const PointCloudXYZI::Ptr   laserCloudInit(new PointCloudXYZI(size_init_ikdtree, 1));
+    laserCloudInit->points = ikdtree.PCL_Storage;
 
     sensor_msgs::PointCloud2 laserCloudmsg;
-    PointVector ().swap(ikdtree.PCL_Storage);
-    ikdtree.flatten(ikdtree.Root_Node, ikdtree.PCL_Storage, NOT_RECORD);
-                
-    laserCloudInit->points = ikdtree.PCL_Storage;
     pcl::toROSMsg(*laserCloudInit, laserCloudmsg);
-        
-    laserCloudmsg.header.stamp = ros::Time().fromSec(lidar_end_time);
-    laserCloudmsg.header.frame_id = init_frame;
-    pubLaserCloudFullRes.publish(laserCloudmsg);
 
+    laserCloudmsg.header.stamp    = ros::Time().fromSec(lidar_end_time);
+    laserCloudmsg.header.frame_id = init_frame;
+
+    pubLaserCloudFullRes.publish(laserCloudmsg);
+  }
 }
 
 PointCloudXYZI::Ptr pcl_wait_pub(new PointCloudXYZI(500000, 1));
 PointCloudXYZI::Ptr pcl_wait_save(new PointCloudXYZI());
 void publish_frame_world(const ros::Publisher & pubLaserCloudFullRes)
 {
-    if (scan_pub_en)
+    if (scan_pub_en && pubLaserCloudFullRes.getNumSubscribers() > 0)
     {
         const int size = feats_down_world->points.size();
 
-        PointCloudXYZI::Ptr   laserCloudWorld(new PointCloudXYZI(size, 1));
-        
+        const PointCloudXYZI::Ptr   laserCloudWorld(new PointCloudXYZI(size, 1));
+
         for (int i = 0; i < size; i++)
         {
             // if (i % 3 == 0)
@@ -621,7 +624,7 @@ void publish_frame_world(const ros::Publisher & pubLaserCloudFullRes)
     if (pcd_save_en)
     {
         const int size = feats_down_world->points.size();
-        PointCloudXYZI::Ptr   laserCloudWorld(new PointCloudXYZI(size, 1));
+        const PointCloudXYZI::Ptr   laserCloudWorld(new PointCloudXYZI(size, 1));
 
         for (int i = 0; i < size; i++)
         {
@@ -650,13 +653,14 @@ void publish_frame_world(const ros::Publisher & pubLaserCloudFullRes)
 
 void publish_frame_body(const ros::Publisher & pubLaserCloudFull_body)
 {
+  if (pubLaserCloudFull_body.getNumSubscribers() > 0) {
     const int size = feats_undistort->points.size();
     const PointCloudXYZI::Ptr laserCloudIMUBody(new PointCloudXYZI(size, 1));
 
     for (int i = 0; i < size; i++)
     {
-        pointBodyLidarToIMU(&feats_undistort->points[i], \
-                            &laserCloudIMUBody->points[i]);
+      pointBodyLidarToIMU(&feats_undistort->points[i], \
+          &laserCloudIMUBody->points[i]);
     }
 
     sensor_msgs::PointCloud2 laserCloudmsg;
@@ -665,6 +669,7 @@ void publish_frame_body(const ros::Publisher & pubLaserCloudFull_body)
     laserCloudmsg.header.frame_id = lidar_frame;
     pubLaserCloudFull_body.publish(laserCloudmsg);
     publish_count -= PUBFRAME_PERIOD;
+  }
 }
 
 template<typename T>
@@ -718,9 +723,8 @@ void set_odomtwist(T & out)
 
 void set_acc(geometry_msgs::Vector3 & out)
 {
-  
     // acceleration is in body frame, but with biases!!
-    // TODO: check frame of biases and if they are in body, subtract!
+    // TODO: check frame of biases and if they are in body, subtract the biases!
     if (!use_imu_as_input)
     {
         out.x = kf_output.x_.acc(0);
