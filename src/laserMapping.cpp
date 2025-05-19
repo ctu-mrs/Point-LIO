@@ -700,25 +700,31 @@ void set_posestamp(T & out)
 }
 
 template<typename T>
-void set_odomtwist(T & out)
+void set_odomtwist(T & out, const tf::Quaternion &quat_world)
 {
-    // velocities are in the mapping/world frame
-    if (!use_imu_as_input)
-    {
-        out.linear.x = kf_output.x_.vel(0);
-        out.linear.y = kf_output.x_.vel(1);
-        out.linear.z = kf_output.x_.vel(2);
 
-        out.angular.x = kf_output.x_.omg(0);
-        out.angular.y = kf_output.x_.omg(1);
-        out.angular.z = kf_output.x_.omg(2);
-    }
-    else
-    {
-        out.linear.x = kf_input.x_.vel(0);
-        out.linear.y = kf_input.x_.vel(1);
-        out.linear.z = kf_input.x_.vel(2);
-    }
+  // get velocities in the mapping/world frame
+  tf::Vector3 lin_vel;
+
+  if (!use_imu_as_input)
+  {
+    lin_vel = tf::Vector3(kf_output.x_.vel(0), kf_output.x_.vel(1), kf_output.x_.vel(2));
+
+    out.angular.x = kf_output.x_.omg(0);
+    out.angular.y = kf_output.x_.omg(1);
+    out.angular.z = kf_output.x_.omg(2);
+  }
+  else
+  {
+    lin_vel = tf::Vector3(kf_input.x_.vel(0), kf_input.x_.vel(1), kf_input.x_.vel(2));
+  }
+
+  const tf::Transform tf_world   = tf::Transform(quat_world, tf::Vector3(0, 0, 0));
+  const tf::Vector3 lin_vel_body = tf_world.inverse() * lin_vel;
+
+  out.linear.x = lin_vel_body.getX();
+  out.linear.y = lin_vel_body.getY();
+  out.linear.z = lin_vel_body.getZ();
 }
 
 void set_acc(geometry_msgs::Vector3 & out)
@@ -747,25 +753,26 @@ void publish_odometry(const ros::Publisher & pubOdomAftMapped, const ros::Publis
         odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time);
     }
     set_posestamp(odomAftMapped.pose.pose);
-    set_odomtwist(odomAftMapped.twist.twist);
 
-    accAftMapped.header = odomAftMapped.header;
-    set_acc(accAftMapped.vector);
-    
+    tf::Quaternion q_world;
+    q_world.setW(odomAftMapped.pose.pose.orientation.w);
+    q_world.setX(odomAftMapped.pose.pose.orientation.x);
+    q_world.setY(odomAftMapped.pose.pose.orientation.y);
+    q_world.setZ(odomAftMapped.pose.pose.orientation.z);
+
+    set_odomtwist(odomAftMapped.twist.twist, q_world);
     pubOdomAftMapped.publish(odomAftMapped);
-    pubAccAftMapped.publish(accAftMapped);
+
+    /* accAftMapped.header = odomAftMapped.header; */
+    /* set_acc(accAftMapped.vector); */
+    /* pubAccAftMapped.publish(accAftMapped); */
 
     static tf::TransformBroadcaster br;
     tf::Transform                   transform;
-    tf::Quaternion                  q;
     transform.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x, \
                                     odomAftMapped.pose.pose.position.y, \
                                     odomAftMapped.pose.pose.position.z));
-    q.setW(odomAftMapped.pose.pose.orientation.w);
-    q.setX(odomAftMapped.pose.pose.orientation.x);
-    q.setY(odomAftMapped.pose.pose.orientation.y);
-    q.setZ(odomAftMapped.pose.pose.orientation.z);
-    transform.setRotation( q );
+    transform.setRotation( q_world );
     br.sendTransform( tf::StampedTransform( transform, odomAftMapped.header.stamp, init_frame, odom_frame ) );
 }
 
