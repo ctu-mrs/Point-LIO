@@ -54,8 +54,9 @@
     	<!-- <param name="filter_size_map"        type="double" value="0.2" /> 0.5, 0.3, 0.15, 0.1 -->
       
 		<!-- ======================= subscribers ====================== -->
-		<remap from="/os_cloud_node/points" to="lidar/points" />
-		<remap from="/os_cloud_node/imu" to="hw_api/imu" />
+    <remap from="/livox/lidar" to="/$(arg UAV_NAME)/os_cloud_nodelet/points" />
+    <remap from="/livox/imu" to="/$(arg UAV_NAME)/os_cloud_nodelet/imu" />
+
 
 		<!-- ======================= publishers ======================= -->
 		<remap from="/cloud_registered" to="~cloud_registered" />
