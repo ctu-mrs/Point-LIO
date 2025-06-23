@@ -12,7 +12,7 @@
 
   <!-- Debug? -->
   <arg     if="$(arg debug)" name="launch_prefix" value="valgrind --tool=callgrind" />
-  <arg unless="$(arg debug)" name="launch_prefix" value="" />
+  <arg unless="$(arg debug)" name="launch_prefix" value="nice -n -10" />
 
   <!-- Standalone? -->
   <arg if="$(eval arg('standalone') or arg('debug'))" name="nodelet" value="standalone" />
