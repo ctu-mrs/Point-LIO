@@ -1,83 +1,123 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.8)
 project(point_lio)
 
-SET(CMAKE_BUILD_TYPE "Debug")
-
-ADD_COMPILE_OPTIONS(-std=c++14 )
-ADD_COMPILE_OPTIONS(-std=c++14 )
-set( CMAKE_CXX_FLAGS "-std=c++14 -O3" ) 
-
-add_definitions(-DROOT_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/\")
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fexceptions" )
-set(CMAKE_CXX_STANDARD 14)
+# set the correct standards
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-message("Current CPU archtecture: ${CMAKE_SYSTEM_PROCESSOR}")
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86)|(X86)|(amd64)|(AMD64)" )
-  include(ProcessorCount)
-  ProcessorCount(N)
-  message("Processer number:  ${N}")
-  if(N GREATER 5)
-    add_definitions(-DMP_EN)
-    add_definitions(-DMP_PROC_NUM=4)
-    message("core for MP:  3")
-  elseif(N GREATER 3)
-    math(EXPR PROC_NUM "${N} - 2")
-    add_definitions(-DMP_EN)
-    add_definitions(-DMP_PROC_NUM="${PROC_NUM}")
-    message("core for MP:  ${PROC_NUM}")
-  else()
-    add_definitions(-DMP_PROC_NUM=1)
-  endif()
-else()
-  add_definitions(-DMP_PROC_NUM=1)
+# TODO enable?
+# add_definitions("-O3")
+add_definitions("-pthread")
+
+# 1 == use rclcpp::Timer implementation
+# 0 == use MRS's thread timer implementation
+set(USE_ROS_TIMER 0)
+
+if(${USE_ROS_TIMER})
+  MESSAGE(WARNING "[example_waypoint_flier]: Compiling with ROS Timers. This can cause high CPU load in runtime.")
 endif()
 
-find_package(OpenMP QUIET)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}   ${OpenMP_C_FLAGS}")
+# set the compile options to show code warnings
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
-find_package(PythonLibs REQUIRED)
-find_path(MATPLOTLIB_CPP_INCLUDE_DIRS "matplotlibcpp.h")
+# find_package(OpenMP QUIET)
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}   ${OpenMP_C_FLAGS}")
 
-find_package(catkin REQUIRED COMPONENTS
+# find_package(PythonLibs REQUIRED)
+# find_path(MATPLOTLIB_CPP_INCLUDE_DIRS "matplotlibcpp.h")
+
+SET(DEPENDENCIES
+  rclcpp
+  rclcpp_components
   geometry_msgs
   nav_msgs
   sensor_msgs
-  roscpp
-  rospy
   std_msgs
-  pcl_ros
-  tf
+  tf2_ros
   livox_ros_driver2
-  message_generation
-  eigen_conversions
+  Eigen3
+  PCL
+  pcl_ros
+  mrs_lib
 )
 
-find_package(Eigen3 REQUIRED)
+set(LIBRARIES
+  PointLIO_PointLIO
+)
+
 find_package(PCL 1.8 REQUIRED)
 
-message(Eigen: ${EIGEN3_INCLUDE_DIR})
+foreach(DEP IN LISTS DEPENDENCIES)
+  find_package(${DEP} REQUIRED)
+endforeach()
 
 include_directories(
-	${catkin_INCLUDE_DIRS} 
-  ${EIGEN3_INCLUDE_DIR}
-  ${PCL_INCLUDE_DIRS}
-  ${PYTHON_INCLUDE_DIRS}
-  include)
-
-catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs message_runtime
-  DEPENDS EIGEN3 PCL
-  INCLUDE_DIRS
+  include
+  ${rclcpp_INCLUDE_DIRS}
+  ${mrs_lib_INCLUDE_DIRS}
 )
 
-add_executable(pointlio_mapping src/laserMapping.cpp include/ikd-Tree/ikd_Tree.cpp src/parameters.cpp src/preprocess.cpp src/Estimator.cpp)
-target_link_libraries(pointlio_mapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
-target_include_directories(pointlio_mapping PRIVATE ${PYTHON_INCLUDE_DIRS})
+## --------------------------------------------------------------
+## |                           compile                          |
+## --------------------------------------------------------------
 
+add_library(PointLIO_PointLIO SHARED
+  src/laser_mapping.cpp
+  include/ikd-Tree/ikd_Tree.cpp
+  src/preprocess.cpp
+  src/estimator.cpp
+)
 
+ament_target_dependencies(PointLIO_PointLIO
+  ${DEPENDENCIES}
+)
 
+rclcpp_components_register_nodes(PointLIO_PointLIO PLUGIN "point_lio::PointLio" EXECUTABLE PointLIO_PointLIO)
+
+target_compile_definitions(PointLIO_PointLIO PRIVATE USE_ROS_TIMER=${USE_ROS_TIMER})
+
+## --------------------------------------------------------------
+## |                           install                          |
+## --------------------------------------------------------------
+
+ament_export_libraries(
+  ${LIBRARIES}
+)
+
+install(
+  TARGETS ${LIBRARIES}
+  EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
+install(
+  DIRECTORY include/
+  DESTINATION .
+)
+
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY config
+  DESTINATION share/${PROJECT_NAME}
+)
+
+ament_export_targets(
+  export_${PROJECT_NAME} HAS_LIBRARY_TARGET
+)
+
+ament_export_dependencies(
+  ${DEPENDENCIES}
+)
+
+ament_package()
