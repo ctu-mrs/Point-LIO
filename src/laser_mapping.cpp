@@ -1,13 +1,11 @@
 /* includes //{ */
 
 #include <rclcpp/rclcpp.hpp>
-
 #include <omp.h>
 #include <mutex>
 #include <math.h>
 #include <csignal>
 #include <unistd.h>
-/* #include <Python.h> */
 #include <so3_math.h>
 #include <Eigen/Core>
 #include <imu_processing.hpp>
@@ -193,8 +191,6 @@ private:
 
   // | ------------------------- methods ------------------------ |
 
-  void shutdown();
-
   void pointBodyLidarToIMU(PointType const *const pi, PointType *const po);
 
   void points_cache_collect();
@@ -353,8 +349,6 @@ void PointLio::initialize() {
 
   cbkgrp_subs_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-  rclcpp::on_shutdown([this]() { this->shutdown(); });
-
   p_pre.reset(new Preprocess());
 
   // | ----------------------- load params ---------------------- |
@@ -363,6 +357,8 @@ void PointLio::initialize() {
 
   param_loader.addYamlFileFromParam("config");
 
+  //                                                                                                            // DEFAULTS FROM ORIGINAL C++ IMPLEMENTATION
+  //                                                                                                            DOWN THERE...
   param_loader.loadParam("main_timer/rate", main_timer_rate_);                                                  // 1
   param_loader.loadParam("prop_at_freq_of_imu", prop_at_freq_of_imu);                                           // 1
   param_loader.loadParam("use_imu_as_input", use_imu_as_input);                                                 // 1
@@ -562,17 +558,6 @@ void PointLio::initialize() {
   is_initialized_ = true;
 
   RCLCPP_INFO(node_->get_logger(), "initialized");
-}
-
-//}
-
-/* shutdown() //{ */
-
-void PointLio::shutdown() {
-
-  flg_exit = true;
-
-  sig_buffer.notify_all();
 }
 
 //}
@@ -984,15 +969,19 @@ void PointLio::pointBodyLidarToIMU(PointType const *const pi, PointType *const p
 
   V3D p_body_lidar(pi->x, pi->y, pi->z);
   V3D p_body_imu;
+
   if (extrinsic_est_en) {
+
     if (!use_imu_as_input) {
       p_body_imu = kf_output.x_.offset_R_L_I * p_body_lidar + kf_output.x_.offset_T_L_I;
     } else {
       p_body_imu = kf_input.x_.offset_R_L_I * p_body_lidar + kf_input.x_.offset_T_L_I;
     }
+
   } else {
     p_body_imu = Lidar_R_wrt_IMU * p_body_lidar + Lidar_T_wrt_IMU;
   }
+
   po->x         = p_body_imu(0);
   po->y         = p_body_imu(1);
   po->z         = p_body_imu(2);
@@ -1019,34 +1008,50 @@ void PointLio::lasermap_fov_segment() {
   cub_needrm.shrink_to_fit();
 
   V3D pos_LiD;
+
   if (use_imu_as_input) {
     pos_LiD = kf_input.x_.pos + kf_input.x_.rot * Lidar_T_wrt_IMU;
   } else {
     pos_LiD = kf_output.x_.pos + kf_output.x_.rot * Lidar_T_wrt_IMU;
   }
+
   if (!Localmap_Initialized) {
+
     for (int i = 0; i < 3; i++) {
       LocalMap_Points.vertex_min[i] = pos_LiD(i) - cube_len / 2.0;
       LocalMap_Points.vertex_max[i] = pos_LiD(i) + cube_len / 2.0;
     }
+
     Localmap_Initialized = true;
+
     return;
   }
+
   float dist_to_map_edge[3][2];
   bool  need_move = false;
+
   for (int i = 0; i < 3; i++) {
+
     dist_to_map_edge[i][0] = fabs(pos_LiD(i) - LocalMap_Points.vertex_min[i]);
     dist_to_map_edge[i][1] = fabs(pos_LiD(i) - LocalMap_Points.vertex_max[i]);
-    if (dist_to_map_edge[i][0] <= MOV_THRESHOLD * DET_RANGE || dist_to_map_edge[i][1] <= MOV_THRESHOLD * DET_RANGE)
+
+    if (dist_to_map_edge[i][0] <= MOV_THRESHOLD * DET_RANGE || dist_to_map_edge[i][1] <= MOV_THRESHOLD * DET_RANGE) {
       need_move = true;
+    }
   }
-  if (!need_move)
+
+  if (!need_move) {
     return;
+  }
+
   BoxPointType New_LocalMap_Points, tmp_boxpoints;
   New_LocalMap_Points = LocalMap_Points;
   float mov_dist      = max((cube_len - 2.0 * MOV_THRESHOLD * DET_RANGE) * 0.5 * 0.9, double(DET_RANGE * (MOV_THRESHOLD - 1)));
+
   for (int i = 0; i < 3; i++) {
+
     tmp_boxpoints = LocalMap_Points;
+
     if (dist_to_map_edge[i][0] <= MOV_THRESHOLD * DET_RANGE) {
       New_LocalMap_Points.vertex_max[i] -= mov_dist;
       New_LocalMap_Points.vertex_min[i] -= mov_dist;
@@ -1059,6 +1064,7 @@ void PointLio::lasermap_fov_segment() {
       cub_needrm.emplace_back(tmp_boxpoints);
     }
   }
+
   LocalMap_Points = New_LocalMap_Points;
 
   points_cache_collect();
@@ -1094,7 +1100,6 @@ void PointLio::standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstShared
     RCLCPP_ERROR(node_->get_logger(), "loop back, clear buffer");
     // lidar_buffer.shrink_to_fit();
 
-    sig_buffer.notify_all();
     return;
   }
 
@@ -1163,7 +1168,6 @@ void PointLio::standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstShared
   }
 
   s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
-  sig_buffer.notify_all();
 }
 
 //}
@@ -1189,9 +1193,8 @@ void PointLio::livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstShare
   scan_count++;
 
   if (rclcpp::Time(msg->header.stamp).seconds() < last_timestamp_lidar) {
-    RCLCPP_ERROR(node_->get_logger(), "loop back, clear buffer");
 
-    sig_buffer.notify_all();
+    RCLCPP_ERROR(node_->get_logger(), "loop back, clear buffer");
     return;
   }
 
@@ -1257,8 +1260,6 @@ void PointLio::livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstShare
   }
 
   s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
-
-  sig_buffer.notify_all();
 }
 
 //}
@@ -1288,16 +1289,12 @@ void PointLio::imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr msg_in) {
 
       RCLCPP_ERROR(node_->get_logger(), "loop back, clear deque");
       // imu_deque.shrink_to_fit();
-      sig_buffer.notify_all();
-
       return;
     }
 
     imu_deque.emplace_back(msg_in);
     last_timestamp_imu = timestamp;
   }
-
-  sig_buffer.notify_all();
 }
 
 //}
@@ -1575,19 +1572,26 @@ template <typename T>
 void PointLio::set_posestamp(T &out) {
 
   if (!use_imu_as_input) {
+
     out.position.x = kf_output.x_.pos(0);
     out.position.y = kf_output.x_.pos(1);
     out.position.z = kf_output.x_.pos(2);
+
     Eigen::Quaterniond q(kf_output.x_.rot);
+
     out.orientation.x = q.coeffs()[0];
     out.orientation.y = q.coeffs()[1];
     out.orientation.z = q.coeffs()[2];
     out.orientation.w = q.coeffs()[3];
+
   } else {
+
     out.position.x = kf_input.x_.pos(0);
     out.position.y = kf_input.x_.pos(1);
     out.position.z = kf_input.x_.pos(2);
+
     Eigen::Quaterniond q(kf_input.x_.rot);
+
     out.orientation.x = q.coeffs()[0];
     out.orientation.y = q.coeffs()[1];
     out.orientation.z = q.coeffs()[2];
