@@ -26,7 +26,7 @@ preprocess:
   # 2 = velodyne
   # 3 = Ouster64
   # 4 = HESAIxt32
-  # 5 = plain simulation
+  # 5 = plain simulation without additional PCL data
   lidar_type: 5
 
   scan_line: 64 # how many scan lines, set for velodyne, hesai, livox avia
