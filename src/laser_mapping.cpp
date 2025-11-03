@@ -355,6 +355,18 @@ void PointLio::initialize() {
 
   mrs_lib::ParamLoader param_loader(node_);
 
+  // load custom config
+
+  std::string custom_config_path;
+  param_loader.loadParam("custom_config", custom_config_path);
+
+  if (custom_config_path != "") {
+    RCLCPP_INFO(node_->get_logger(), "loading custom config '%s", custom_config_path.c_str());
+    param_loader.addYamlFile(custom_config_path);
+  }
+
+  // load other configs
+
   param_loader.addYamlFileFromParam("config");
 
   //                                                                                                            // DEFAULTS FROM ORIGINAL C++ IMPLEMENTATION
