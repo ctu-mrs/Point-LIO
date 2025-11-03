@@ -454,7 +454,6 @@ void PointLio::initialize() {
   ph_laser_cloud_full_res_body_ = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/cloud_registered_body_out");
   ph_odom_aft_mapped_           = mrs_lib::PublisherHandler<nav_msgs::msg::Odometry>(node_, "~/odometry_out");
   ph_acc_aft_mapped_            = mrs_lib::PublisherHandler<geometry_msgs::msg::Vector3Stamped>(node_, "~/linear_acceleration_out");
-  ph_path_                      = mrs_lib::PublisherHandler<nav_msgs::msg::Path>(node_, "~/path_out");
 
   {
     mrs_lib::PublisherHandlerOptions ph_options;
@@ -467,6 +466,7 @@ void PointLio::initialize() {
     ph_options.qos = qos_profile;
 
     ph_laser_cloud_map_ = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(ph_options, "~/laser_cloud_map_out");
+    ph_path_            = mrs_lib::PublisherHandler<nav_msgs::msg::Path>(ph_options, "~/path_out");
   }
 
   // | ----------------------- subscribers ---------------------- |
@@ -1492,7 +1492,6 @@ void PointLio::publish_init_kdtree(void) {
   laserCloudmsg.header.frame_id = init_frame;
 
   ph_laser_cloud_map_.publish(laserCloudmsg);
-
 }
 
 //}

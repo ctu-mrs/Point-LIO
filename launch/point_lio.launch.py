@@ -41,7 +41,8 @@ def generate_launch_description():
             # subscribers
             ('~/imu_in', 'hw_api/imu'),
             ('~/pc_in', 'lidar/points'),
-            # publishhers
+            ('~/livox_in', '~/livox_in'),
+            # publishers
             ('~/odometry_out', '~/odometry'),
             ('~/cloud_registered_out', '~/cloud_registered'),
             ('~/cloud_registered_body_out', '~/cloud_registered_body'),
