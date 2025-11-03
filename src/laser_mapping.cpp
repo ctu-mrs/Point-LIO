@@ -454,6 +454,7 @@ void PointLio::initialize() {
   ph_laser_cloud_full_res_body_ = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/cloud_registered_body_out");
   ph_odom_aft_mapped_           = mrs_lib::PublisherHandler<nav_msgs::msg::Odometry>(node_, "~/odometry_out");
   ph_acc_aft_mapped_            = mrs_lib::PublisherHandler<geometry_msgs::msg::Vector3Stamped>(node_, "~/linear_acceleration_out");
+  ph_path_                      = mrs_lib::PublisherHandler<nav_msgs::msg::Path>(node_, "~/path_out");
 
   {
     mrs_lib::PublisherHandlerOptions ph_options;
@@ -466,7 +467,6 @@ void PointLio::initialize() {
     ph_options.qos = qos_profile;
 
     ph_laser_cloud_map_ = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(ph_options, "~/laser_cloud_map_out");
-    ph_path_            = mrs_lib::PublisherHandler<nav_msgs::msg::Path>(ph_options, "~/path_out");
   }
 
   // | ----------------------- subscribers ---------------------- |
@@ -1538,7 +1538,7 @@ void PointLio::publish_frame_world() {
 
 void PointLio::publish_frame_body() {
 
-  if (ph_laser_cloud_full_res_body_.getNumSubscribers() > 0) {
+  if (scan_body_pub_en && ph_laser_cloud_full_res_body_.getNumSubscribers() > 0) {
 
     const int                 size = feats_undistort->points.size();
     const PointCloudXYZI::Ptr laserCloudIMUBody(new PointCloudXYZI(size, 1));
@@ -1678,20 +1678,10 @@ void PointLio::publish_odometry() {
   set_odomtwist(odomAftMapped.twist.twist, q_world);
   ph_odom_aft_mapped_.publish(odomAftMapped);
 
-  /* accAftMapped.header = odomAftMapped.header; */
-  /* set_acc(accAftMapped.vector); */
-  /* ph_acc_aft_mapped_.publish(accAftMapped); */
+  accAftMapped.header = odomAftMapped.header;
+  set_acc(accAftMapped.vector);
 
-  // TODO refactor tf publishing from ROS1? do we even need it?
-  // down there...
-
-  /* static tf::TransformBroadcaster br; */
-
-  /* tf::Transform                   transform; */
-  /* transform.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x, odomAftMapped.pose.pose.position.y, odomAftMapped.pose.pose.position.z)); */
-  /* transform.setRotation(q_world); */
-
-  /* br.sendTransform(tf::StampedTransform(transform, odomAftMapped.header.stamp, init_frame, odom_frame)); */
+  ph_acc_aft_mapped_.publish(accAftMapped);
 }
 
 //}
@@ -1752,9 +1742,7 @@ void PointLio::publish_path() {
 
   msg_body_pose_prev = msg_body_pose.pose;
 
-  if (ph_path_.getNumSubscribers() > 0) {
-    ph_path_.publish(path);
-  }
+  ph_path_.publish(path);
 }
 
 //}
