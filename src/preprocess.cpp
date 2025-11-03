@@ -5,7 +5,7 @@
 
 /* Preprocess() //{ */
 
-Preprocess::Preprocess() : lidar_type(AVIA), blind(0.01), point_filter_num(1) {
+Preprocess::Preprocess() : lidar_type(PLAIN_SIMULATION), point_filter_num(1) {
 
   inf_bound         = 10;
   N_SCANS           = 6;

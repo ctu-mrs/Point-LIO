@@ -38,8 +38,8 @@ mrs_uav_flightforge_simulator:
 
         enabled: true
 
-        std_at_1m: 0.01 # [m]
-        std_slope: 0.01 # [-] # multiplies std_at_1m for each meter of measured distances
+        std_at_1m: 0.02 # [m]
+        std_slope: 0.05 # [-] # multiplies std_at_1m for each meter of measured distances
 
       lidar_segmented:
         enabled: false

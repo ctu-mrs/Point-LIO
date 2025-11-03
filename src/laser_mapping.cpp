@@ -363,7 +363,7 @@ void PointLio::initialize() {
 
   param_loader.addYamlFileFromParam("config");
 
-  param_loader.loadParam("main_timer/rate", main_timer_rate_);                                           // 1
+  param_loader.loadParam("main_timer/rate", main_timer_rate_);                                                  // 1
   param_loader.loadParam("prop_at_freq_of_imu", prop_at_freq_of_imu);                                           // 1
   param_loader.loadParam("use_imu_as_input", use_imu_as_input);                                                 // 1
   param_loader.loadParam("check_satu", check_satu);                                                             // 1
@@ -418,6 +418,12 @@ void PointLio::initialize() {
   param_loader.loadParam("runtime_pos_log_enable", runtime_pos_log);                                            // 0
   param_loader.loadParam("uav_name", uav_name);                                                                 // ""
 
+  if (!param_loader.loadedSuccessfully()) {
+    RCLCPP_ERROR(node_->get_logger(), "failed to load non-optional parameters!");
+    rclcpp::shutdown();
+    exit(1);
+  }
+
   p_imu = std::make_shared<ImuProcess>(node_);
 
   ptr_con               = std::make_shared<PointCloudXYZI>();
@@ -446,10 +452,22 @@ void PointLio::initialize() {
 
   ph_laser_cloud_full_res_      = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/cloud_registered_out");
   ph_laser_cloud_full_res_body_ = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/cloud_registered_body_out");
-  ph_laser_cloud_map_           = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/laser_cloud_map_out");
   ph_odom_aft_mapped_           = mrs_lib::PublisherHandler<nav_msgs::msg::Odometry>(node_, "~/odometry_out");
   ph_acc_aft_mapped_            = mrs_lib::PublisherHandler<geometry_msgs::msg::Vector3Stamped>(node_, "~/linear_acceleration_out");
   ph_path_                      = mrs_lib::PublisherHandler<nav_msgs::msg::Path>(node_, "~/path_out");
+
+  {
+    mrs_lib::PublisherHandlerOptions ph_options;
+
+    ph_options.node = node_;
+
+    rclcpp::QoS qos_profile = rclcpp::SystemDefaultsQoS();
+    qos_profile.transient_local();
+
+    ph_options.qos = qos_profile;
+
+    ph_laser_cloud_map_ = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(ph_options, "~/laser_cloud_map_out");
+  }
 
   // | ----------------------- subscribers ---------------------- |
 
@@ -1460,9 +1478,6 @@ void PointLio::publish_init_kdtree(void) {
   PointVector().swap(ikdtree.PCL_Storage);
   ikdtree.flatten(ikdtree.Root_Node, ikdtree.PCL_Storage, NOT_RECORD);
 
-  // TODO fix mrs_lib and put this back?
-  /* if (ph_laser_cloud_full_res_.getNumSubscribers() > 0) { */
-
   const int                 size_init_ikdtree = ikdtree.size();
   const PointCloudXYZI::Ptr laserCloudInit(new PointCloudXYZI(size_init_ikdtree, 1));
   laserCloudInit->points = ikdtree.PCL_Storage;
@@ -1470,17 +1485,14 @@ void PointLio::publish_init_kdtree(void) {
   sensor_msgs::msg::PointCloud2 laserCloudmsg;
   pcl::toROSMsg(*laserCloudInit, laserCloudmsg);
 
-  // Tomas: old from ros1
-  /* laserCloudmsg.header.stamp    = ros::Time().fromSec(lidar_end_time); */
-
   const double secs     = floor(lidar_end_time);
   const double nanosecs = (lidar_end_time - secs) * 1e9;
 
   laserCloudmsg.header.stamp    = rclcpp::Time(secs, nanosecs, clock_->get_clock_type());
   laserCloudmsg.header.frame_id = init_frame;
 
-  ph_laser_cloud_full_res_.publish(laserCloudmsg);
-  /* } */
+  ph_laser_cloud_map_.publish(laserCloudmsg);
+
 }
 
 //}
@@ -1489,9 +1501,7 @@ void PointLio::publish_init_kdtree(void) {
 
 void PointLio::publish_frame_world() {
 
-  // TODO fix mrs_lib and put this back?
-  // && ph_laser_cloud_full_res_.getNumSubscribers() > 0) {
-  if (scan_pub_en) {
+  if (scan_pub_en && ph_laser_cloud_full_res_.getNumSubscribers() > 0) {
 
     const int size = feats_down_world->points.size();
 
@@ -1529,34 +1539,33 @@ void PointLio::publish_frame_world() {
 
 void PointLio::publish_frame_body() {
 
-  // TODO fix mrs_lib and put this back?
-  /* if (ph_laser_cloud_full_res_body_.getNumSubscribers() > 0) { */
+  if (ph_laser_cloud_full_res_body_.getNumSubscribers() > 0) {
 
-  const int                 size = feats_undistort->points.size();
-  const PointCloudXYZI::Ptr laserCloudIMUBody(new PointCloudXYZI(size, 1));
+    const int                 size = feats_undistort->points.size();
+    const PointCloudXYZI::Ptr laserCloudIMUBody(new PointCloudXYZI(size, 1));
 
-  for (int i = 0; i < size; i++) {
-    pointBodyLidarToIMU(&feats_undistort->points[i], &laserCloudIMUBody->points[i]);
+    for (int i = 0; i < size; i++) {
+      pointBodyLidarToIMU(&feats_undistort->points[i], &laserCloudIMUBody->points[i]);
+    }
+
+    sensor_msgs::msg::PointCloud2 laserCloudmsg;
+
+    pcl::toROSMsg(*laserCloudIMUBody, laserCloudmsg);
+
+    // Tomas: old from ROS1
+    /* laserCloudmsg.header.stamp    = ros::Time().fromSec(lidar_end_time); */
+
+    const double secs     = floor(lidar_end_time);
+    const double nanosecs = (lidar_end_time - secs) * 1e9;
+
+    laserCloudmsg.header.stamp = rclcpp::Time(secs, nanosecs, clock_->get_clock_type());
+
+    laserCloudmsg.header.frame_id = lidar_frame;
+
+    ph_laser_cloud_full_res_body_.publish(laserCloudmsg);
+
+    publish_count -= PUBFRAME_PERIOD;
   }
-
-  sensor_msgs::msg::PointCloud2 laserCloudmsg;
-
-  pcl::toROSMsg(*laserCloudIMUBody, laserCloudmsg);
-
-  // Tomas: old from ROS1
-  /* laserCloudmsg.header.stamp    = ros::Time().fromSec(lidar_end_time); */
-
-  const double secs     = floor(lidar_end_time);
-  const double nanosecs = (lidar_end_time - secs) * 1e9;
-
-  laserCloudmsg.header.stamp = rclcpp::Time(secs, nanosecs, clock_->get_clock_type());
-
-  laserCloudmsg.header.frame_id = lidar_frame;
-
-  ph_laser_cloud_full_res_body_.publish(laserCloudmsg);
-
-  publish_count -= PUBFRAME_PERIOD;
-  /* } */
 }
 
 //}
@@ -1744,10 +1753,9 @@ void PointLio::publish_path() {
 
   msg_body_pose_prev = msg_body_pose.pose;
 
-  // TODO fix mrs_lib and put this back?
-  /* if (ph_path_.getNumSubscribers() > 0) { */
-  ph_path_.publish(path);
-  /* } */
+  if (ph_path_.getNumSubscribers() > 0) {
+    ph_path_.publish(path);
+  }
 }
 
 //}

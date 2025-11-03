@@ -10,7 +10,7 @@ point_filter_num: 4
 filter_size_surf: 0.5
 filter_size_map: 0.5
 cube_side_length: 1000
-runtime_pos_log: false
+runtime_pos_log_enable: false
 
 common:
   con_frame: false # true: if you need to combine several LiDAR frames into one
@@ -32,7 +32,7 @@ preprocess:
   scan_line: 64 # how many scan lines, set for velodyne, hesai, livox avia
   timestamp_unit: 3 # the unit of time/t field in the PointCloud2 rostopic: 0-second, 1-milisecond, 2-microsecond, 3-nanosecond.
   blind: 1.50 # ignore points closer than this
-  scan_rate: 10.0
+  scan_rate: 10
 
 mapping:
   imu_en: true
@@ -76,7 +76,3 @@ publish:
 
   scan_publish_en: true         # false: close all the point cloud output
   scan_bodyframe_pub_en: false  # true: output the point cloud scans in IMU-body-frame
-
-pcd_save:
-  pcd_save_en: false
-  interval: -1                 # how many LiDAR frames saved in each pcd file;
