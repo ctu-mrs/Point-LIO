@@ -1,10 +1,11 @@
-from launch_ros.actions import ComposableNodeContainer, Node
+from launch_ros.actions import ComposableNodeContainer, LoadComposableNodes
 from launch_ros.descriptions import ComposableNode
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch_ros.substitutions import FindPackageShare
 from mrs_lib.remappings_custom_config_parser import RemappingsCustomConfigParser
 from ament_index_python.packages import get_package_share_directory
+from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import (
         LaunchConfiguration,
         IfElseSubstitution,
@@ -26,6 +27,7 @@ def generate_launch_description():
     pkg_name = "point_lio"
 
     this_pkg_path = get_package_share_directory(pkg_name)
+    namespace='point_lio'
 
     # #{ custom_config
 
@@ -78,6 +80,20 @@ def generate_launch_description():
 
     # #} end of standalone
 
+    # #{ container_name
+
+    container_name = LaunchConfiguration('container_name')
+
+    declare_container_name = DeclareLaunchArgument(
+        'container_name',
+        default_value='',
+        description='Name of an existing container to load into (if standalone is false)'
+    )
+
+    ld.add_action(declare_container_name)
+
+    # #} end of container_name
+
     # #{ use_sim_time
 
     use_sim_time = LaunchConfiguration('use_sim_time')
@@ -90,6 +106,8 @@ def generate_launch_description():
 
     # #} end of custom_config
 
+    # #{ node
+
     node = ComposableNode(
         package='point_lio',
         plugin='point_lio::PointLio',
@@ -99,6 +117,7 @@ def generate_launch_description():
             {"use_sim_time": use_sim_time},
             {"uav_name": uav_name},
             {"config" : this_pkg_path+'/config/simulation.yaml'},
+            {'custom_config': custom_config},
         ],
         remappings=[
             # subscribers
@@ -115,11 +134,21 @@ def generate_launch_description():
         ]
     )
 
-    # #{ container
+    load_into_existing = LoadComposableNodes(
+        target_container=container_name,
+        composable_node_descriptions=[node],
+        condition=UnlessCondition(standalone)
+    )
 
-    container = ComposableNodeContainer(
-        name='point_lio_container',
+    ld.add_action(load_into_existing)
+
+    # #} end of node
+
+    # #{ standalone container
+
+    standalone_container = ComposableNodeContainer(
         namespace=uav_name,
+        name=namespace+'_point_lio_container',
         package='rclcpp_components',
         executable='component_container_mt',
         output="screen",
@@ -134,8 +163,8 @@ def generate_launch_description():
         ],
     )
 
-    ld.add_action(container)
+    ld.add_action(standalone_container)
 
-    # #} end of container
+    # #} end of standalone container
 
     return ld
