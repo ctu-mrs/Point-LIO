@@ -29,11 +29,13 @@ typedef pcl::PointCloud<PointType> PointCloudXYZI;
 
 enum LID_TYPE
 {
-  AVIA = 1,
-  VELO16,
-  OUST64,
-  HESAIxt32
-};  // { 1, 2, 3, 4 }
+  AVIA             = 1,
+  VELO16           = 2,
+  OUST64           = 3,
+  HESAIxt32        = 4,
+  PLAIN_SIMULATION = 5
+};  // { 1, 2, 3, 4, 5}
+
 enum TIME_UNIT
 {
   SEC = 0,
@@ -41,6 +43,7 @@ enum TIME_UNIT
   US  = 2,
   NS  = 3
 };
+
 enum Feature
 {
   Nor,
@@ -51,11 +54,13 @@ enum Feature
   Wire,
   ZeroPoint
 };
+
 enum Surround
 {
   Prev,
   Next
 };
+
 enum E_jump
 {
   Nr_nor,
@@ -144,6 +149,22 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(ouster_ros::Point,
     (std::uint32_t, range, range)
 )
 
+namespace plain_simulation
+{
+struct EIGEN_ALIGN16 Point
+{
+  PCL_ADD_POINT4D;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+}  // namespace flightforge_ros
+
+// clang-format off
+POINT_CLOUD_REGISTER_POINT_STRUCT(plain_simulation::Point,
+    (float, x, x)
+    (float, y, y)
+    (float, z, z)
+)
+
 //}
 
 class Preprocess
@@ -153,7 +174,7 @@ class Preprocess
 
   Preprocess();
   ~Preprocess();
-  
+
   void process(const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr &msg, PointCloudXYZI::Ptr &pcl_out);
   void process(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, PointCloudXYZI::Ptr &pcl_out);
   void set(bool feat_en, int lid_type, double bld, int pfilt_num);
@@ -166,13 +187,14 @@ class Preprocess
   int lidar_type, point_filter_num, N_SCANS, SCAN_RATE, time_unit;
   double blind;
   bool given_offset_time;
-  
+
   // TODO needed?
   /* ros::Publisher pub_full, pub_surf, pub_corn; */
 
   private:
   void avia_handler(const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr &msg);
   void oust64_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void plain_simulation_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
   void velodyne_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
   void hesai_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
   void give_feature(PointCloudXYZI &pl, vector<orgtype> &types);
@@ -180,7 +202,7 @@ class Preprocess
   int  plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, uint &i_nex, Eigen::Vector3d &curr_direct);
   bool small_plane(const PointCloudXYZI &pl, vector<orgtype> &types, uint i_cur, uint &i_nex, Eigen::Vector3d &curr_direct);
   bool edge_jump_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, Surround nor_dir);
-  
+
   int group_size;
   double disA, disB, inf_bound;
   double limit_maxmid, limit_midmin, limit_maxmin;

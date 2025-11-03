@@ -65,40 +65,61 @@ void Preprocess::process(const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr
 void Preprocess::process(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg, PointCloudXYZI::Ptr &pcl_out) {
 
   switch (time_unit) {
-    case SEC:
+
+    case SEC: {
       time_unit_scale = 1.e3f;
       break;
-    case MS:
+    }
+
+    case MS: {
       time_unit_scale = 1.f;
       break;
-    case US:
+    }
+
+    case US: {
       time_unit_scale = 1.e-3f;
       break;
-    case NS:
+    }
+
+    case NS: {
       time_unit_scale = 1.e-6f;
       break;
-    default:
+    }
+
+    default: {
       time_unit_scale = 1.f;
       break;
+    }
   }
 
   switch (lidar_type) {
-    case OUST64:
+
+    case OUST64: {
       oust64_handler(msg);
       break;
+    }
 
-    case VELO16:
+    case VELO16: {
       velodyne_handler(msg);
       break;
+    }
 
-    case HESAIxt32:
+    case HESAIxt32: {
       hesai_handler(msg);
       break;
+    }
 
-    default:
+    case PLAIN_SIMULATION: {
+      plain_simulation_handler(msg);
+      break;
+    }
+
+    default: {
       printf("Error LiDAR Type");
       break;
+    }
   }
+
   *pcl_out = pl_surf;
 }
 
@@ -156,6 +177,7 @@ void Preprocess::oust64_handler(const sensor_msgs::msg::PointCloud2::ConstShared
   pcl::PointCloud<ouster_ros::Point> pl_orig;
   pcl::fromROSMsg(*msg, pl_orig);
   int plsize = pl_orig.size();
+
   // pl_corn.reserve(plsize);
   pl_surf.reserve(plsize);
 
@@ -163,17 +185,21 @@ void Preprocess::oust64_handler(const sensor_msgs::msg::PointCloud2::ConstShared
 
   // cout << "===================================" << endl;
   // printf("Pt size = %d, N_SCANS = %d\r\n", plsize, N_SCANS);
-  for (int i = 0; i < pl_orig.points.size(); i++) {
-    if (i % point_filter_num != 0)
+  for (size_t i = 0; i < pl_orig.points.size(); i++) {
+
+    if (i % point_filter_num != 0) {
       continue;
+    }
 
     double range = pl_orig.points[i].x * pl_orig.points[i].x + pl_orig.points[i].y * pl_orig.points[i].y + pl_orig.points[i].z * pl_orig.points[i].z;
 
-    if (range < (blind * blind))
+    if (range < (blind * blind)) {
       continue;
+    }
 
     Eigen::Vector3d pt_vec;
     PointType       added_pt;
+
     added_pt.x         = pl_orig.points[i].x;
     added_pt.y         = pl_orig.points[i].y;
     added_pt.z         = pl_orig.points[i].z;
@@ -182,6 +208,54 @@ void Preprocess::oust64_handler(const sensor_msgs::msg::PointCloud2::ConstShared
     added_pt.normal_y  = 0;
     added_pt.normal_z  = 0;
     added_pt.curvature = pl_orig.points[i].t * time_unit_scale;  // curvature unit: ms
+
+    pl_surf.points.push_back(added_pt);
+  }
+}
+
+//}
+
+/* plain_simulation_handler() //{ */
+
+void Preprocess::plain_simulation_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
+
+  pl_surf.clear();
+  // pl_corn.clear();
+  // pl_full.clear();
+  pcl::PointCloud<plain_simulation::Point> pl_orig;
+  pcl::fromROSMsg(*msg, pl_orig);
+  int plsize = pl_orig.size();
+
+  // pl_corn.reserve(plsize);
+  pl_surf.reserve(plsize);
+
+  double time_stamp = rclcpp::Time(msg->header.stamp).seconds();
+
+  // cout << "===================================" << endl;
+  // printf("Pt size = %d, N_SCANS = %d\r\n", plsize, N_SCANS);
+  for (size_t i = 0; i < pl_orig.points.size(); i++) {
+
+    if (i % point_filter_num != 0) {
+      continue;
+    }
+
+    double range = pl_orig.points[i].x * pl_orig.points[i].x + pl_orig.points[i].y * pl_orig.points[i].y + pl_orig.points[i].z * pl_orig.points[i].z;
+
+    if (range < (blind * blind)) {
+      continue;
+    }
+
+    Eigen::Vector3d pt_vec;
+    PointType       added_pt;
+
+    added_pt.x         = pl_orig.points[i].x;
+    added_pt.y         = pl_orig.points[i].y;
+    added_pt.z         = pl_orig.points[i].z;
+    added_pt.intensity = 0;
+    added_pt.normal_x  = 0;
+    added_pt.normal_y  = 0;
+    added_pt.normal_z  = 0;
+    added_pt.curvature = 0;
 
     pl_surf.points.push_back(added_pt);
   }
@@ -476,7 +550,9 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
     }
 
     types[i].intersect = vecs[Prev].dot(vecs[Next]) / vecs[Prev].norm() / vecs[Next].norm();
+
     if (types[i].edj[Prev] == Nr_nor && types[i].edj[Next] == Nr_zero && types[i].dista > 0.0225 && types[i].dista > 4 * types[i - 1].dista) {
+
       if (types[i].intersect > cos160) {
         if (edge_jump_judge(pl, types, i, Prev)) {
           types[i].ftype = Edge_Jump;

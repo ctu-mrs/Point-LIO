@@ -8,8 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # TODO enable?
-# add_definitions("-O3")
-add_definitions("-pthread")
+add_definitions("-O3")
 
 # 1 == use rclcpp::Timer implementation
 # 0 == use MRS's thread timer implementation

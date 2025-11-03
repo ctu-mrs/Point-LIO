@@ -5,12 +5,11 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 from mrs_lib.remappings_custom_config_parser import RemappingsCustomConfigParser
+from ament_index_python.packages import get_package_share_directory
 
 import launch
 
 import os
-
-from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
 
@@ -36,13 +35,20 @@ def generate_launch_description():
         parameters=[
             {"use_sim_time": True},
             {"uav_name": uav_name},
-            {"config" : this_pkg_path+'/config/ouster64.yaml'},
+            {"config" : this_pkg_path+'/config/simulation.yaml'},
         ],
         remappings=[
             # subscribers
             ('~/imu_in', 'hw_api/imu'),
             ('~/pc_in', 'lidar/points'),
-            ]
+            # publishhers
+            ('~/odometry_out', '~/odometry'),
+            ('~/cloud_registered_out', '~/cloud_registered'),
+            ('~/cloud_registered_body_out', '~/cloud_registered_body'),
+            ('~/laser_cloud_map_out', '~/laser_cloud_map'),
+            ('~/linear_acceleration_out', '~/linear_acceleration'),
+            ('~/path_out', '~/path'),
+        ]
     )
 
     # #{ container

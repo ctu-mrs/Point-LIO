@@ -72,10 +72,11 @@ private:
 private:
   // | ----------------------- parameters ----------------------- |
 
+  double main_timer_rate_;
+
   bool   is_first_frame = true;
   double lidar_end_time = 0.0, first_lidar_time = 0.0, time_con = 0.0;
   double last_timestamp_lidar = -1.0, last_timestamp_imu = -1.0;
-  int    pcd_index = 0;
 
   std::string            lid_topic, imu_topic;
   bool                   prop_at_freq_of_imu, check_satu, con_frame, cut_frame;
@@ -92,11 +93,11 @@ private:
   double                 vel_cov, acc_cov_input, gyr_cov_input;
   double                 gyr_cov_output, acc_cov_output, b_gyr_cov, b_acc_cov;
   double                 imu_meas_acc_cov, imu_meas_omg_cov;
-  int                    lidar_type, pcd_save_interval;
+  int                    lidar_type;
   std::vector<double>    gravity_init, gravity;
   std::vector<double>    extrinT;
   std::vector<double>    extrinR;
-  bool                   runtime_pos_log, pcd_save_en, path_en, extrinsic_est_en = true;
+  bool                   runtime_pos_log, path_en, extrinsic_est_en = true;
   bool                   scan_pub_en, scan_body_pub_en;
   double                 path_diff_t, path_diff_R;
   shared_ptr<Preprocess> p_pre;
@@ -297,9 +298,7 @@ private:
 
   int frame_num = 0;
 
-  double aver_time_consu = 0, aver_time_icp = 0, aver_time_match = 0, aver_time_incre = 0, aver_time_solve = 0, aver_time_propag = 0;
-
-  std::time_t startTime, endTime;
+  double aver_time_consu = 0, aver_time_icp = 0, aver_time_match = 0, aver_time_solve = 0, aver_time_propag = 0;
 
   double FOV_DEG;
   double HALF_FOV_COS;
@@ -326,7 +325,7 @@ private:
   void timerMain();
 };
 
-PointLio* PointLio::instance = nullptr;
+PointLio *PointLio::instance = nullptr;
 
 static bool time_list(PointType &x, PointType &y) {
   return (x.curvature < y.curvature);
@@ -364,6 +363,7 @@ void PointLio::initialize() {
 
   param_loader.addYamlFileFromParam("config");
 
+  param_loader.loadParam("main_timer/rate", main_timer_rate_);                                           // 1
   param_loader.loadParam("prop_at_freq_of_imu", prop_at_freq_of_imu);                                           // 1
   param_loader.loadParam("use_imu_as_input", use_imu_as_input);                                                 // 1
   param_loader.loadParam("check_satu", check_satu);                                                             // 1
@@ -415,9 +415,7 @@ void PointLio::initialize() {
   param_loader.loadParam("publish/path/diff_R", path_diff_R);                                                   // 0.1
   param_loader.loadParam("publish/scan_publish_en", scan_pub_en);                                               // 1
   param_loader.loadParam("publish/scan_bodyframe_pub_en", scan_body_pub_en);                                    // 1
-  /* param_loader.loadParam("runtime_pos_log_enable", runtime_pos_log);                                            // 0 */
-  /* param_loader.loadParam("pcd_save/pcd_save_en", pcd_save_en);                                                  // false */
-  /* param_loader.loadParam("pcd_save/interval", pcd_save_interval);                                               // -1 */
+  param_loader.loadParam("runtime_pos_log_enable", runtime_pos_log);                                            // 0
   param_loader.loadParam("uav_name", uav_name);                                                                 // ""
 
   p_imu = std::make_shared<ImuProcess>(node_);
@@ -449,7 +447,7 @@ void PointLio::initialize() {
   ph_laser_cloud_full_res_      = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/cloud_registered_out");
   ph_laser_cloud_full_res_body_ = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/cloud_registered_body_out");
   ph_laser_cloud_map_           = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/laser_cloud_map_out");
-  ph_odom_aft_mapped_           = mrs_lib::PublisherHandler<nav_msgs::msg::Odometry>(node_, "~/odom_out");
+  ph_odom_aft_mapped_           = mrs_lib::PublisherHandler<nav_msgs::msg::Odometry>(node_, "~/odometry_out");
   ph_acc_aft_mapped_            = mrs_lib::PublisherHandler<geometry_msgs::msg::Vector3Stamped>(node_, "~/linear_acceleration_out");
   ph_path_                      = mrs_lib::PublisherHandler<nav_msgs::msg::Path>(node_, "~/path_out");
 
@@ -538,7 +536,7 @@ void PointLio::initialize() {
   {
     std::function<void()> callback_fcn = std::bind(&PointLio::timerMain, this);
 
-    timer_main_ = std::make_shared<mrs_lib::ThreadTimer>(timer_opts_start, rclcpp::Rate(1000.0, clock_), callback_fcn);
+    timer_main_ = std::make_shared<mrs_lib::ThreadTimer>(timer_opts_start, rclcpp::Rate(main_timer_rate_, clock_), callback_fcn);
   }
 
   // | --------------------- finish the init -------------------- |
@@ -612,7 +610,7 @@ Eigen::Matrix<double, 24, 1> PointLio::get_f_input(state_input &s, const input_i
   return res;
 }
 
-Eigen::Matrix<double, 30, 1> PointLio::get_f_output(state_output &s, const input_ikfom &in) {
+Eigen::Matrix<double, 30, 1> PointLio::get_f_output(state_output &s, [[maybe_unused]] const input_ikfom &in) {
   Eigen::Matrix<double, 30, 1> res        = Eigen::Matrix<double, 30, 1>::Zero();
   vect3                        a_inertial = s.rot * s.acc;
   for (int i = 0; i < 3; i++) {
@@ -650,7 +648,7 @@ Eigen::Matrix<double, 24, 24> PointLio::df_dx_input(state_input &s, const input_
 // 	return cov;
 // }
 
-Eigen::Matrix<double, 30, 30> PointLio::df_dx_output(state_output &s, const input_ikfom &in) {
+Eigen::Matrix<double, 30, 30> PointLio::df_dx_output(state_output &s, [[maybe_unused]] const input_ikfom &in) {
 
   Eigen::Matrix<double, 30, 30> cov = Eigen::Matrix<double, 30, 30>::Zero();
   cov.template block<3, 3>(0, 12)   = Eigen::Matrix3d::Identity();
@@ -726,12 +724,16 @@ vect3 PointLio::SO3ToEuler(const SO3 &rot) {
 
 void PointLio::h_model_input(state_input &s, esekfom::dyn_share_modified<double> &ekfom_data) {
 
-  bool match_in_map = false;
   VF(4) pabcd;
+
   pabcd.setZero();
+
   normvec->resize(time_seq[k]);
+
   int effect_num_k = 0;
+
   for (int j = 0; j < time_seq[k]; j++) {
+
     PointType &point_body_j  = feats_down_body->points[idx + j + 1];
     PointType &point_world_j = feats_down_world->points[idx + j + 1];
     pointBodyToWorld(&point_body_j, &point_world_j);
@@ -803,7 +805,6 @@ void PointLio::h_model_input(state_input &s, esekfom::dyn_share_modified<double>
 
 void PointLio::h_model_output(state_output &s, esekfom::dyn_share_modified<double> &ekfom_data) {
 
-  bool match_in_map = false;
   VF(4) pabcd;
   pabcd.setZero();
 
@@ -1043,8 +1044,10 @@ void PointLio::lasermap_fov_segment() {
   LocalMap_Points = New_LocalMap_Points;
 
   points_cache_collect();
-  if (cub_needrm.size() > 0)
-    int kdtree_delete_counter = ikdtree.Delete_Point_Boxes(cub_needrm);
+
+  if (cub_needrm.size() > 0) {
+    ikdtree.Delete_Point_Boxes(cub_needrm);
+  }
 }
 
 //}
@@ -1057,7 +1060,7 @@ void PointLio::standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstShared
     return;
   }
 
-  RCLCPP_INFO_ONCE(node_->get_logger(), "getting point clouds");
+  RCLCPP_INFO_ONCE(node_->get_logger(), "got standard point cloud");
 
   std::scoped_lock lock(mtx_buffer);
 
@@ -1067,7 +1070,9 @@ void PointLio::standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstShared
 
   scan_count++;
   double preprocess_start_time = omp_get_wtime();
+
   if (rclcpp::Time(msg->header.stamp).seconds() < last_timestamp_lidar) {
+
     RCLCPP_ERROR(node_->get_logger(), "loop back, clear buffer");
     // lidar_buffer.shrink_to_fit();
 
@@ -1081,12 +1086,16 @@ void PointLio::standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstShared
   PointCloudXYZI::Ptr ptr_div(new PointCloudXYZI());
   double              time_div = rclcpp::Time(msg->header.stamp).seconds();
   p_pre->process(msg, ptr);
+
   if (cut_frame) {
+
     sort(ptr->points.begin(), ptr->points.end(), time_list);
 
-    for (int i = 0; i < ptr->size(); i++) {
+    for (size_t i = 0; i < ptr->size(); i++) {
+
       ptr_div->push_back(ptr->points[i]);
       // cout << "check time:" << ptr->points[i].curvature << endl;
+      //
       if (ptr->points[i].curvature / double(1000) + rclcpp::Time(msg->header.stamp).seconds() - time_div > cut_frame_time_interval) {
         if (ptr_div->size() < 1)
           continue;
@@ -1098,21 +1107,28 @@ void PointLio::standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstShared
         ptr_div->clear();
       }
     }
+
     if (!ptr_div->empty()) {
       lidar_buffer.push_back(ptr_div);
       // ptr_div->clear();
       time_buffer.push_back(time_div);
     }
+
   } else if (con_frame) {
+
     if (frame_ct == 0) {
       time_con = last_timestamp_lidar;  // msg->header.stamp.toSec();
     }
+
     if (frame_ct < con_frame_num) {
-      for (int i = 0; i < ptr->size(); i++) {
+
+      for (size_t i = 0; i < ptr->size(); i++) {
         ptr->points[i].curvature += (last_timestamp_lidar - time_con) * 1000;
         ptr_con->push_back(ptr->points[i]);
       }
+
       frame_ct++;
+
     } else {
       PointCloudXYZI::Ptr ptr_con_i(new PointCloudXYZI());
       *ptr_con_i = *ptr_con;
@@ -1122,10 +1138,12 @@ void PointLio::standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstShared
       ptr_con->clear();
       frame_ct = 0;
     }
+
   } else {
     lidar_buffer.emplace_back(ptr);
     time_buffer.emplace_back(rclcpp::Time(msg->header.stamp).seconds());
   }
+
   s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
   sig_buffer.notify_all();
 }
@@ -1170,7 +1188,7 @@ void PointLio::livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstShare
 
     sort(ptr->points.begin(), ptr->points.end(), time_list);
 
-    for (int i = 0; i < ptr->size(); i++) {
+    for (size_t i = 0; i < ptr->size(); i++) {
       ptr_div->push_back(ptr->points[i]);
       if (ptr->points[i].curvature / double(1000) + rclcpp::Time(msg->header.stamp).seconds() - time_div > cut_frame_time_interval) {
         if (ptr_div->size() < 1)
@@ -1191,15 +1209,20 @@ void PointLio::livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstShare
       time_buffer.push_back(time_div);
     }
   } else if (con_frame) {
+
     if (frame_ct == 0) {
       time_con = last_timestamp_lidar;  // msg->header.stamp.toSec();
     }
+
     if (frame_ct < con_frame_num) {
-      for (int i = 0; i < ptr->size(); i++) {
+
+      for (size_t i = 0; i < ptr->size(); i++) {
         ptr->points[i].curvature += (last_timestamp_lidar - time_con) * 1000;
         ptr_con->push_back(ptr->points[i]);
       }
+
       frame_ct++;
+
     } else {
       PointCloudXYZI::Ptr ptr_con_i(new PointCloudXYZI());
       *ptr_con_i        = *ptr_con;
@@ -1209,10 +1232,12 @@ void PointLio::livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstShare
       ptr_con->clear();
       frame_ct = 0;
     }
+
   } else {
     lidar_buffer.emplace_back(ptr);
     time_buffer.emplace_back(rclcpp::Time(msg->header.stamp).seconds());
   }
+
   s_plot11[scan_count] = omp_get_wtime() - preprocess_start_time;
 
   sig_buffer.notify_all();
@@ -1264,25 +1289,33 @@ void PointLio::imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr msg_in) {
 bool PointLio::sync_packages(MeasureGroup &meas) {
 
   if (!imu_en) {
+
     if (!lidar_buffer.empty()) {
+
       meas.lidar          = lidar_buffer.front();
       meas.lidar_beg_time = time_buffer.front();
+
       time_buffer.pop_front();
       lidar_buffer.pop_front();
+
       if (meas.lidar->points.size() < 1) {
         cout << "lose lidar" << std::endl;
         return false;
       }
+
       double end_time = meas.lidar->points.back().curvature;
+
       for (auto pt : meas.lidar->points) {
         if (pt.curvature > end_time) {
           end_time = pt.curvature;
         }
       }
+
       lidar_end_time       = meas.lidar_beg_time + end_time / double(1000);
       meas.lidar_last_time = lidar_end_time;
       return true;
     }
+
     return false;
   }
 
@@ -1292,20 +1325,25 @@ bool PointLio::sync_packages(MeasureGroup &meas) {
 
   /*** push a lidar scan ***/
   if (!lidar_pushed) {
+
     meas.lidar = lidar_buffer.front();
+
     if (meas.lidar->points.size() < 1) {
       cout << "lose lidar" << endl;
       lidar_buffer.pop_front();
       time_buffer.pop_front();
       return false;
     }
+
     meas.lidar_beg_time = time_buffer.front();
     double end_time     = meas.lidar->points.back().curvature;
+
     for (auto pt : meas.lidar->points) {
       if (pt.curvature > end_time) {
         end_time = pt.curvature;
       }
     }
+
     lidar_end_time = meas.lidar_beg_time + end_time / double(1000);
 
     meas.lidar_last_time = lidar_end_time;
@@ -1315,6 +1353,7 @@ bool PointLio::sync_packages(MeasureGroup &meas) {
   if (last_timestamp_imu < lidar_end_time) {
     return false;
   }
+
   /*** push imu data, and pop from imu buffer ***/
   if (p_imu->imu_need_init_) {
     double imu_time = rclcpp::Time(imu_deque.front()->header.stamp).seconds();
@@ -1329,7 +1368,9 @@ bool PointLio::sync_packages(MeasureGroup &meas) {
       imu_next     = *(imu_deque.front());
       imu_deque.pop_front();
     }
+
   } else if (!init_map) {
+
     double imu_time = rclcpp::Time(imu_deque.front()->header.stamp).seconds();
     meas.imu.shrink_to_fit();
     meas.imu.emplace_back(imu_last_ptr);
@@ -1367,22 +1408,27 @@ void PointLio::map_incremental() {
   PointNoNeedDownsample.reserve(feats_down_size);
 
   for (int i = 0; i < feats_down_size; i++) {
+
     if (!Nearest_Points[i].empty()) {
+
       const PointVector &points_near = Nearest_Points[i];
       bool               need_add    = true;
-      PointType          downsample_result, mid_point;
+      PointType          mid_point;
       mid_point.x = floor(feats_down_world->points[i].x / filter_size_map_min) * filter_size_map_min + 0.5 * filter_size_map_min;
       mid_point.y = floor(feats_down_world->points[i].y / filter_size_map_min) * filter_size_map_min + 0.5 * filter_size_map_min;
       mid_point.z = floor(feats_down_world->points[i].z / filter_size_map_min) * filter_size_map_min + 0.5 * filter_size_map_min;
+
       /* If the nearest points is definitely outside the downsample box */
       if (fabs(points_near[0].x - mid_point.x) > 0.866 * filter_size_map_min || fabs(points_near[0].y - mid_point.y) > 0.866 * filter_size_map_min ||
           fabs(points_near[0].z - mid_point.z) > 0.866 * filter_size_map_min) {
         PointNoNeedDownsample.emplace_back(feats_down_world->points[i]);
         continue;
       }
+
       /* Check if there is a point already in the downsample box */
-      float dist = calc_dist<float>(feats_down_world->points[i], mid_point);
-      for (int readd_i = 0; readd_i < points_near.size(); readd_i++) {
+      /* float dist = calc_dist<float>(feats_down_world->points[i], mid_point); */
+
+      for (size_t readd_i = 0; readd_i < points_near.size(); readd_i++) {
         /* Those points which are outside the downsample box should not be considered. */
         if (fabs(points_near[readd_i].x - mid_point.x) < 0.5 * filter_size_map_min && fabs(points_near[readd_i].y - mid_point.y) < 0.5 * filter_size_map_min &&
             fabs(points_near[readd_i].z - mid_point.z) < 0.5 * filter_size_map_min) {
@@ -1390,14 +1436,18 @@ void PointLio::map_incremental() {
           break;
         }
       }
-      if (need_add)
+
+      if (need_add) {
         PointToAdd.emplace_back(feats_down_world->points[i]);
+      }
+
     } else {
       // PointToAdd.emplace_back(feats_down_world->points[i]);
       PointNoNeedDownsample.emplace_back(feats_down_world->points[i]);
     }
   }
-  int add_point_size = ikdtree.Add_Points(PointToAdd, true);
+
+  ikdtree.Add_Points(PointToAdd, true);
   ikdtree.Add_Points(PointNoNeedDownsample, false);
 }
 
@@ -1727,7 +1777,7 @@ void PointLio::timerMain() {
       return;
     }
 
-    double t0, t1, t2, t3, t4, t5, match_start, solve_start;
+    double t0, t1, t2, t3, t4, t5, solve_start;
     match_time  = 0;
     solve_time  = 0;
     propag_time = 0;
@@ -1742,13 +1792,16 @@ void PointLio::timerMain() {
     }
 
     if (imu_en) {
+
       if (!p_imu->gravity_align_) {
+
         while (Measures.lidar_beg_time > rclcpp::Time(imu_next.header.stamp).seconds()) {
           imu_last = imu_next;
           imu_next = *(imu_deque.front());
           imu_deque.pop_front();
           // imu_deque.pop();
         }
+
         if (non_station_start) {
           state_in.gravity << VEC_FROM_ARRAY(gravity_init);
           state_out.gravity << VEC_FROM_ARRAY(gravity_init);
@@ -1759,6 +1812,7 @@ void PointLio::timerMain() {
           state_out.gravity = -1 * p_imu->mean_acc * G_m_s2 / acc_norm;
           state_out.acc     = p_imu->mean_acc * G_m_s2 / acc_norm;
         }
+
         if (gravity_align) {
           Eigen::Matrix3d rot_init;
           p_imu->gravity_ << VEC_FROM_ARRAY(gravity);
@@ -1771,13 +1825,18 @@ void PointLio::timerMain() {
           // state_out.rot.normalize();
           state_out.acc = -rot_init.transpose() * state_out.gravity;
         }
+
         kf_input.change_x(state_in);
         kf_output.change_x(state_out);
         p_imu->gravity_align_ = true;
       }
+
     } else {
+
       if (!p_imu->gravity_align_) {
+
         state_in.gravity << VEC_FROM_ARRAY(gravity_init);
+
         if (gravity_align) {
           Eigen::Matrix3d rot_init;
           p_imu->gravity_ << VEC_FROM_ARRAY(gravity);
@@ -1792,15 +1851,19 @@ void PointLio::timerMain() {
           state_out.acc << VEC_FROM_ARRAY(gravity_init);
           state_out.acc *= -1;
         }
+
         // kf_input.change_x(state_in);
         kf_output.change_x(state_out);
         p_imu->gravity_align_ = true;
       }
     }
+
     /*** Segment the map in lidar FOV ***/
     lasermap_fov_segment();
+
     /*** downsample the feature points in a scan ***/
     t1 = omp_get_wtime();
+
     if (space_down_sample) {
       downSizeFilterSurf.setInputCloud(feats_undistort);
       downSizeFilterSurf.filter(*feats_down_body);
@@ -1809,6 +1872,7 @@ void PointLio::timerMain() {
       feats_down_body = Measures.lidar;
       sort(feats_down_body->points.begin(), feats_down_body->points.end(), time_list);
     }
+
     time_seq        = time_compressing<int>(feats_down_body);
     feats_down_size = feats_down_body->points.size();
 
@@ -1817,20 +1881,21 @@ void PointLio::timerMain() {
 
       if (ikdtree.Root_Node == nullptr)  //
       // if(feats_down_size > 5)
-
       {
         ikdtree.set_downsample_param(filter_size_map_min);
       }
 
       feats_down_world->resize(feats_down_size);
+
       for (int i = 0; i < feats_down_size; i++) {
         pointBodyToWorld(&(feats_down_body->points[i]), &(feats_down_world->points[i]));
       }
+
       for (size_t i = 0; i < feats_down_world->size(); i++) {
         init_feats_world->points.emplace_back(feats_down_world->points[i]);
       }
 
-      if (init_feats_world->size() < init_map_size) {
+      if (int(init_feats_world->size()) < init_map_size) {
         return;
       }
 
@@ -1856,8 +1921,10 @@ void PointLio::timerMain() {
     // pbody_ext_list.reserve(feats_down_size);
 
     for (size_t i = 0; i < feats_down_body->size(); i++) {
+
       V3D point_this(feats_down_body->points[i].x, feats_down_body->points[i].y, feats_down_body->points[i].z);
       pbody_list[i] = point_this;
+
       if (extrinsic_est_en) {
         if (!use_imu_as_input) {
           point_this = kf_output.x_.offset_R_L_I * point_this + kf_output.x_.offset_T_L_I;
@@ -1867,25 +1934,31 @@ void PointLio::timerMain() {
       } else {
         point_this = Lidar_R_wrt_IMU * point_this + Lidar_T_wrt_IMU;
       }
+
       M3D point_crossmat;
       point_crossmat << SKEW_SYM_MATRX(point_this);
       crossmat_list[i] = point_crossmat;
     }
 
     if (!use_imu_as_input) {
+
       // bool imu_upda_cov = false;
       effct_feat_num = 0;
       /**** point by point update ****/
 
       double pcl_beg_time = Measures.lidar_beg_time;
       idx                 = -1;
-      for (k = 0; k < time_seq.size(); k++) {
+
+      for (size_t k = 0; k < time_seq.size(); k++) {
+
         PointType &point_body = feats_down_body->points[idx + time_seq[k]];
 
         time_current = point_body.curvature / 1000.0 + pcl_beg_time;
 
         if (is_first_frame) {
+
           if (imu_en) {
+
             while (time_current > rclcpp::Time(imu_next.header.stamp).seconds()) {
               imu_last = imu_next;
               imu_next = *(imu_deque.front());
@@ -1896,14 +1969,19 @@ void PointLio::timerMain() {
             angvel_avr << imu_last.angular_velocity.x, imu_last.angular_velocity.y, imu_last.angular_velocity.z;
             acc_avr << imu_last.linear_acceleration.x, imu_last.linear_acceleration.y, imu_last.linear_acceleration.z;
           }
+
           is_first_frame = false;
           // imu_upda_cov = true;
           time_update_last        = time_current;
           time_predict_last_const = time_current;
         }
+
         if (imu_en) {
+
           bool imu_comes = time_current > rclcpp::Time(imu_next.header.stamp).seconds();
+
           while (imu_comes) {
+
             // imu_upda_cov = true;
             angvel_avr << imu_next.angular_velocity.x, imu_next.angular_velocity.y, imu_next.angular_velocity.z;
             acc_avr << imu_next.linear_acceleration.x, imu_next.linear_acceleration.y, imu_next.linear_acceleration.z;
@@ -1916,6 +1994,7 @@ void PointLio::timerMain() {
             kf_output.predict(dt, Q_output, input_in, true, false);
             time_predict_last_const = rclcpp::Time(imu_last.header.stamp).seconds();  // big problem
             imu_comes               = time_current > rclcpp::Time(imu_next.header.stamp).seconds();
+
             // if (!imu_comes)
             {
               double dt_cov = rclcpp::Time(imu_last.header.stamp).seconds() - time_update_last;
@@ -1937,6 +2016,7 @@ void PointLio::timerMain() {
 
         double dt                 = time_current - time_predict_last_const;
         double propag_state_start = omp_get_wtime();
+
         if (!prop_at_freq_of_imu) {
           double dt_cov = time_current - time_update_last;
           if (dt_cov > 0.0) {
@@ -1944,6 +2024,7 @@ void PointLio::timerMain() {
             time_update_last = time_current;
           }
         }
+
         kf_output.predict(dt, Q_output, input_in, true, false);
         propag_time += omp_get_wtime() - propag_state_start;
         time_predict_last_const = time_current;
@@ -1961,6 +2042,7 @@ void PointLio::timerMain() {
           idx += time_seq[k];
           continue;
         }
+
         if (!kf_output.update_iterated_dyn_share_modified()) {
           idx = idx + time_seq[k];
           continue;
@@ -2004,22 +2086,29 @@ void PointLio::timerMain() {
         idx += time_seq[k];
         // cout << "pbp output effect feat num:" << effct_feat_num << endl;
       }
+
     } else {
+
       bool imu_prop_cov = false;
       effct_feat_num    = 0;
 
       double pcl_beg_time = Measures.lidar_beg_time;
       idx                 = -1;
-      for (k = 0; k < time_seq.size(); k++) {
+
+      for (size_t k = 0; k < time_seq.size(); k++) {
+
         PointType &point_body = feats_down_body->points[idx + time_seq[k]];
         time_current          = point_body.curvature / 1000.0 + pcl_beg_time;
+
         if (is_first_frame) {
+
           while (time_current > rclcpp::Time(imu_next.header.stamp).seconds()) {
             imu_last = imu_next;
             imu_next = *(imu_deque.front());
             imu_deque.pop_front();
             // imu_deque.pop();
           }
+
           imu_prop_cov = true;
           // imu_upda_cov = true;
 
@@ -2165,7 +2254,7 @@ void PointLio::timerMain() {
       publish_path();
     }
 
-    if (scan_pub_en || pcd_save_en) {
+    if (scan_pub_en) {
       publish_frame_world();
     }
 
@@ -2175,6 +2264,7 @@ void PointLio::timerMain() {
 
     /*** Debug variables Logging ***/
     if (runtime_pos_log) {
+
       frame_num++;
       aver_time_consu = aver_time_consu * (frame_num - 1) / frame_num + (t5 - t0) / frame_num;
       { aver_time_icp = aver_time_icp * (frame_num - 1) / frame_num + update_time / frame_num; }
@@ -2186,11 +2276,14 @@ void PointLio::timerMain() {
       s_plot2[time_log_counter] = feats_undistort->points.size();
       s_plot3[time_log_counter] = aver_time_consu;
       time_log_counter++;
+
       printf(
           "[ mapping ]: time: IMU + Map + Input Downsample: %0.6f ave match: %0.6f ave solve: %0.6f  ave ICP: %0.6f  map incre: %0.6f ave total: %0.6f icp: "
           "%0.6f propogate: %0.6f \n",
           t1 - t0, aver_time_match, aver_time_solve, t3 - t1, t5 - t3, aver_time_consu, aver_time_icp, aver_time_propag);
+
       if (!publish_odometry_without_downsample) {
+
         if (!use_imu_as_input) {
           state_out = kf_output.x_;
           euler_cur = SO3ToEuler(state_out.rot);
