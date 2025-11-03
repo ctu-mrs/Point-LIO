@@ -487,7 +487,7 @@ void PointLio::initialize() {
   // | ------------------------ old main ------------------------ |
 
   cout << "lidar_type: " << lidar_type << endl;
-  init_frame = uav_name + "/" + "point_lio_init";
+  init_frame = uav_name + "/" + "point_lio_origin";
   odom_frame = uav_name + "/" + "point_lio_odom";
 
   /* path.header.stamp    = ros::Time().fromSec(lidar_end_time); */
