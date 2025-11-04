@@ -114,6 +114,11 @@ void Preprocess::process(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &ms
       break;
     }
 
+    case GAZEBO_SIMULATION: {
+      gazebo_simulation_handler(msg);
+      break;
+    }
+
     default: {
       printf("Error LiDAR Type");
       break;
@@ -208,6 +213,54 @@ void Preprocess::oust64_handler(const sensor_msgs::msg::PointCloud2::ConstShared
     added_pt.normal_y  = 0;
     added_pt.normal_z  = 0;
     added_pt.curvature = pl_orig.points[i].t * time_unit_scale;  // curvature unit: ms
+
+    pl_surf.points.push_back(added_pt);
+  }
+}
+
+//}
+
+/* gazebo_simulation_handler() //{ */
+
+void Preprocess::gazebo_simulation_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg) {
+
+  pl_surf.clear();
+  // pl_corn.clear();
+  // pl_full.clear();
+  pcl::PointCloud<gazebo_simulation::Point> pl_orig;
+  pcl::fromROSMsg(*msg, pl_orig);
+  int plsize = pl_orig.size();
+
+  // pl_corn.reserve(plsize);
+  pl_surf.reserve(plsize);
+
+  double time_stamp = rclcpp::Time(msg->header.stamp).seconds();
+
+  // cout << "===================================" << endl;
+  // printf("Pt size = %d, N_SCANS = %d\r\n", plsize, N_SCANS);
+  for (size_t i = 0; i < pl_orig.points.size(); i++) {
+
+    if (i % point_filter_num != 0) {
+      continue;
+    }
+
+    double range = pl_orig.points[i].x * pl_orig.points[i].x + pl_orig.points[i].y * pl_orig.points[i].y + pl_orig.points[i].z * pl_orig.points[i].z;
+
+    if (range < (blind * blind)) {
+      continue;
+    }
+
+    Eigen::Vector3d pt_vec;
+    PointType       added_pt;
+
+    added_pt.x         = pl_orig.points[i].x;
+    added_pt.y         = pl_orig.points[i].y;
+    added_pt.z         = pl_orig.points[i].z;
+    added_pt.intensity = pl_orig.points[i].intensity;
+    added_pt.normal_x  = 0;
+    added_pt.normal_y  = 0;
+    added_pt.normal_z  = 0;
+    added_pt.curvature = 0;
 
     pl_surf.points.push_back(added_pt);
   }

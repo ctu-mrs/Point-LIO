@@ -28,7 +28,7 @@ preprocess:
   # 4 = HESAIxt32
   # 5 = plain simulation without additional PCL data
   # 6 = gazebo simulation
-  lidar_type: 5
+  lidar_type: 6
 
   scan_line: 64 # how many scan lines, set for velodyne, hesai, livox avia
   timestamp_unit: 3 # the unit of time/t field in the PointCloud2 rostopic: 0-second, 1-milisecond, 2-microsecond, 3-nanosecond.

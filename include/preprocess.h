@@ -29,11 +29,12 @@ typedef pcl::PointCloud<PointType> PointCloudXYZI;
 
 enum LID_TYPE
 {
-  AVIA             = 1,
-  VELO16           = 2,
-  OUST64           = 3,
-  HESAIxt32        = 4,
-  PLAIN_SIMULATION = 5
+  AVIA              = 1,
+  VELO16            = 2,
+  OUST64            = 3,
+  HESAIxt32         = 4,
+  PLAIN_SIMULATION  = 5,
+  GAZEBO_SIMULATION = 6,
 };  // { 1, 2, 3, 4, 5}
 
 enum TIME_UNIT
@@ -149,6 +150,27 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(ouster_ros::Point,
     (std::uint32_t, range, range)
 )
 
+namespace gazebo_simulation
+{
+struct EIGEN_ALIGN16 Point
+{
+  PCL_ADD_POINT4D;
+  float    intensity;
+  uint16_t ring;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+}  // namespace ouster_ros
+
+// clang-format off
+POINT_CLOUD_REGISTER_POINT_STRUCT(gazebo_simulation::Point,
+    (float, x, x)
+    (float, y, y)
+    (float, z, z)
+    (float, intensity, intensity)
+    // use std::uint32_t to avoid conflicting with pcl::uint32_t
+    (std::uint16_t, ring, ring)
+)
+
 namespace plain_simulation
 {
 struct EIGEN_ALIGN16 Point
@@ -194,6 +216,7 @@ class Preprocess
   private:
   void avia_handler(const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr &msg);
   void oust64_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
+  void gazebo_simulation_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
   void plain_simulation_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
   void velodyne_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
   void hesai_handler(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &msg);
