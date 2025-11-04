@@ -66,6 +66,54 @@ def generate_launch_description():
 
     # #} end of custom_config
 
+    # #{ config
+
+    config = LaunchConfiguration('config')
+
+    ld.add_action(DeclareLaunchArgument(
+        'config',
+        default_value="mid360",
+        description="Sensor preset (defines which config file is loaded).",
+    ))
+
+    # #} end of config
+
+    # #{ topic_pc
+
+    topic_pc = LaunchConfiguration('topic_pc')
+
+    ld.add_action(DeclareLaunchArgument(
+        'topic_pc',
+        default_value="lidar/points",
+        description="Standard point cloud topic.",
+    ))
+
+    # #} end of topic_pc
+
+    # #{ topic_livox
+
+    topic_livox = LaunchConfiguration('topic_livox')
+
+    ld.add_action(DeclareLaunchArgument(
+        'topic_livox',
+        default_value="livox_lidar_publisher/points",
+        description="Livox custom topic.",
+    ))
+
+    # #} end of topic_livox
+
+    # #{ topic_imu
+
+    topic_imu = LaunchConfiguration('topic_imu')
+
+    ld.add_action(DeclareLaunchArgument(
+        'topic_imu',
+        default_value="livox_lidar_publisher/imu",
+        description="IMU topic.",
+    ))
+
+    # #} end of topic_imu
+
     # #{ standalone
 
     standalone = LaunchConfiguration('standalone')
@@ -116,14 +164,14 @@ def generate_launch_description():
         parameters=[
             {"use_sim_time": use_sim_time},
             {"uav_name": uav_name},
-            {"config" : this_pkg_path+'/config/simulation.yaml'},
+            {"config" : [this_pkg_path+'/config/',config,'.yaml']},
             {'custom_config': custom_config},
         ],
         remappings=[
             # subscribers
-            ('~/imu_in', 'hw_api/imu'),
-            ('~/pc_in', 'lidar/points'),
-            ('~/livox_in', '~/livox_in'),
+            ('~/imu_in', topic_imu),
+            ('~/pc_in', topic_pc),
+            ('~/livox_in', topic_livox),
             # publishers
             ('~/odometry_out', '~/odometry'),
             ('~/cloud_registered_out', '~/cloud_registered'),
