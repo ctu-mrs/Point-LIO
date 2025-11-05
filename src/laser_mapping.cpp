@@ -468,11 +468,20 @@ void PointLio::initialize() {
 
   // | ----------------------- publishers ----------------------- |
 
-  ph_laser_cloud_full_res_      = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/cloud_registered_out");
-  ph_laser_cloud_full_res_body_ = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/cloud_registered_body_out");
-  ph_odom_aft_mapped_           = mrs_lib::PublisherHandler<nav_msgs::msg::Odometry>(node_, "~/odometry_out");
-  ph_acc_aft_mapped_            = mrs_lib::PublisherHandler<geometry_msgs::msg::Vector3Stamped>(node_, "~/linear_acceleration_out");
-  ph_path_                      = mrs_lib::PublisherHandler<nav_msgs::msg::Path>(node_, "~/path_out");
+  if (scan_pub_en) {
+    ph_laser_cloud_full_res_ = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/cloud_registered_out");
+  }
+
+  if (scan_body_pub_en) {
+    ph_laser_cloud_full_res_body_ = mrs_lib::PublisherHandler<sensor_msgs::msg::PointCloud2>(node_, "~/cloud_registered_body_out");
+  }
+
+  ph_odom_aft_mapped_ = mrs_lib::PublisherHandler<nav_msgs::msg::Odometry>(node_, "~/odometry_out");
+  ph_acc_aft_mapped_  = mrs_lib::PublisherHandler<geometry_msgs::msg::Vector3Stamped>(node_, "~/linear_acceleration_out");
+
+  if (path_en) {
+    ph_path_ = mrs_lib::PublisherHandler<nav_msgs::msg::Path>(node_, "~/path_out");
+  }
 
   {
     mrs_lib::PublisherHandlerOptions ph_options;
@@ -1519,7 +1528,7 @@ void PointLio::publish_init_kdtree(void) {
 
 void PointLio::publish_frame_world() {
 
-  if (scan_pub_en && ph_laser_cloud_full_res_.getNumSubscribers() > 0) {
+  if (ph_laser_cloud_full_res_.getNumSubscribers() > 0) {
 
     const int size = feats_down_world->points.size();
 
@@ -1557,7 +1566,7 @@ void PointLio::publish_frame_world() {
 
 void PointLio::publish_frame_body() {
 
-  if (scan_body_pub_en && ph_laser_cloud_full_res_body_.getNumSubscribers() > 0) {
+  if (ph_laser_cloud_full_res_body_.getNumSubscribers() > 0) {
 
     const int                 size = feats_undistort->points.size();
     const PointCloudXYZI::Ptr laserCloudIMUBody(new PointCloudXYZI(size, 1));
@@ -2270,7 +2279,7 @@ void PointLio::timerMain() {
     }
 
     t5 = omp_get_wtime();
-    /******* Publish points *******/
+
     if (path_en) {
       publish_path();
     }
