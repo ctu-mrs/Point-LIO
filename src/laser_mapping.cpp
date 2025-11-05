@@ -365,6 +365,16 @@ void PointLio::initialize() {
     param_loader.addYamlFile(custom_config_path);
   }
 
+  // load preset
+
+  std::string preset_path;
+  param_loader.loadParam("preset", preset_path);
+
+  if (preset_path != "") {
+    RCLCPP_INFO(node_->get_logger(), "loading preset config '%s", preset_path.c_str());
+    param_loader.addYamlFile(preset_path);
+  }
+
   // load other configs
 
   param_loader.addYamlFileFromParam("config");

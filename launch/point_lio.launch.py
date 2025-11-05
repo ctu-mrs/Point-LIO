@@ -66,17 +66,17 @@ def generate_launch_description():
 
     # #} end of custom_config
 
-    # #{ config
+    # #{ preset
 
-    config = LaunchConfiguration('config')
+    preset = LaunchConfiguration('preset')
 
     ld.add_action(DeclareLaunchArgument(
-        'config',
+        'preset',
         default_value="mid360",
         description="Sensor preset (defines which config file is loaded).",
     ))
 
-    # #} end of config
+    # #} end of preset
 
     # #{ topic_pc
 
@@ -164,7 +164,8 @@ def generate_launch_description():
         parameters=[
             {"use_sim_time": use_sim_time},
             {"uav_name": uav_name},
-            {"config" : [this_pkg_path+'/config/',config,'.yaml']},
+            {"config" : this_pkg_path+'/config/default.yaml'},
+            {"preset" : [this_pkg_path+'/config/presets/',preset,'.yaml']},
             {'custom_config': custom_config},
         ],
         remappings=[

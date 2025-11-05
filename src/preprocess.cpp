@@ -256,7 +256,7 @@ void Preprocess::gazebo_simulation_handler(const sensor_msgs::msg::PointCloud2::
     added_pt.x         = pl_orig.points[i].x;
     added_pt.y         = pl_orig.points[i].y;
     added_pt.z         = pl_orig.points[i].z;
-    added_pt.intensity = pl_orig.points[i].intensity;
+    added_pt.intensity = 0;
     added_pt.normal_x  = 0;
     added_pt.normal_y  = 0;
     added_pt.normal_z  = 0;

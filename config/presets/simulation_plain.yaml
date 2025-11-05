@@ -1,0 +1,9 @@
+preprocess:
+
+  # 1 = Livox Avia
+  # 2 = velodyne
+  # 3 = Ouster64
+  # 4 = HESAIxt32
+  # 5 = plain simulation without additional PCL data
+  # 6 = gazebo simulation
+  lidar_type: 5
