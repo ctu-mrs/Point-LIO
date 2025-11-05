@@ -6,7 +6,7 @@ use_imu_as_input: true
 check_satu: true
 init_map_size: 10 # [what units?]
 space_down_sample: true
-point_filter_num: 4
+point_filter_num: 1 # ? only using one of N points? So of this is 4, it will drop 3 out of 4 points?
 filter_size_surf: 0.5
 filter_size_map: 0.5
 cube_side_length: 1000 # [what units?]
