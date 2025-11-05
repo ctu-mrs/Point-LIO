@@ -27,7 +27,7 @@ preprocess:
   # 3 = Ouster64
   # 4 = HESAIxt32
   # 5 = plain simulation without additional PCL data
-  # 6 = gazebo simulation
+  # 6 = gazebo simulation (x, y, z, intenzity, ring)
   # should be set in the preset file
   # lidar_type: 5 
 
