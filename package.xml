@@ -28,6 +28,7 @@
   <depend>livox_ros_driver2</depend>
   <depend>eigen</depend>
   <depend>mrs_lib</depend>
+  <depend>backward_ros</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

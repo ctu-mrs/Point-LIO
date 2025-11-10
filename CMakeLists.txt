@@ -39,6 +39,7 @@ SET(DEPENDENCIES
   PCL
   pcl_ros
   mrs_lib
+  backward_ros
 )
 
 set(LIBRARIES

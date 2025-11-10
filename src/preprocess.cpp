@@ -288,12 +288,6 @@ void Preprocess::plain_simulation_handler(const sensor_msgs::msg::PointCloud2::C
 
   double time_stamp = rclcpp::Time(msg->header.stamp).seconds();
 
-  printf("[%.2f] pl_orig.points.size() = %d\n", time_stamp, int(pl_orig.points.size()));
-  printf("[%.2f] pl_orig.size() = %d\n", time_stamp, int(pl_orig.size()));
-  fflush(stdout);
-
-  // cout << "===================================" << endl;
-  // printf("Pt size = %d, N_SCANS = %d\r\n", plsize, N_SCANS);
   for (size_t i = 0; i < pl_orig.points.size(); i++) {
 
     if (i % point_filter_num != 0) {

@@ -197,11 +197,11 @@ private:
 
   void lasermap_fov_segment();
 
-  void standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
+  void callbackStandardPC(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
-  void livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr msg);
+  void callbackLivox(const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr msg);
 
-  void imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr msg_in);
+  void callbackIMU(const sensor_msgs::msg::Imu::ConstSharedPtr msg_in);
 
   bool sync_packages(MeasureGroup &meas);
 
@@ -507,9 +507,9 @@ void PointLio::initialize() {
   shopts.subscription_options.callback_group = cbkgrp_subs_;
   shopts.qos                                 = rclcpp::SensorDataQoS();
 
-  sh_imu_   = mrs_lib::SubscriberHandler<sensor_msgs::msg::Imu>(shopts, "~/imu_in", &PointLio::imu_cbk, this);
-  sh_pc_    = mrs_lib::SubscriberHandler<sensor_msgs::msg::PointCloud2>(shopts, "~/pc_in", &PointLio::standard_pcl_cbk, this);
-  sh_livox_ = mrs_lib::SubscriberHandler<livox_ros_driver2::msg::CustomMsg>(shopts, "~/livox_in", &PointLio::livox_pcl_cbk, this);
+  sh_imu_   = mrs_lib::SubscriberHandler<sensor_msgs::msg::Imu>(shopts, "~/imu_in", &PointLio::callbackIMU, this);
+  sh_pc_    = mrs_lib::SubscriberHandler<sensor_msgs::msg::PointCloud2>(shopts, "~/pc_in", &PointLio::callbackStandardPC, this);
+  sh_livox_ = mrs_lib::SubscriberHandler<livox_ros_driver2::msg::CustomMsg>(shopts, "~/livox_in", &PointLio::callbackLivox, this);
 
   // | ------------------------ old main ------------------------ |
 
@@ -1107,9 +1107,9 @@ void PointLio::lasermap_fov_segment() {
 
 //}
 
-/* standard_pcl_cbk() //{ */
+/* callbackStandardPC() //{ */
 
-void PointLio::standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
+void PointLio::callbackStandardPC(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg) {
 
   if (!is_initialized_) {
     return;
@@ -1203,15 +1203,15 @@ void PointLio::standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstShared
 
 //}
 
-/* livox_pcl_cbk() //{ */
+/* callbackLivox() //{ */
 
-void PointLio::livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr msg) {
+void PointLio::callbackLivox(const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr msg) {
 
   if (!is_initialized_) {
     return;
   }
 
-  RCLCPP_INFO(node_->get_logger(), "getting livox data");
+  RCLCPP_INFO_ONCE(node_->get_logger(), "getting livox data");
 
   std::scoped_lock lock(mtx_buffer);
 
@@ -1295,9 +1295,9 @@ void PointLio::livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstShare
 
 //}
 
-/* imu_ckb() //{ */
+/* callbackIMU() //{ */
 
-void PointLio::imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr msg_in) {
+void PointLio::callbackIMU(const sensor_msgs::msg::Imu::ConstSharedPtr msg_in) {
 
   if (!is_initialized_) {
     return;
