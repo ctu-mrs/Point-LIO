@@ -1,6 +1,6 @@
 preprocess:
 
-  # 1 = Livox Avia
+  # 1 = Livox
   # 2 = velodyne
   # 3 = Ouster64
   # 4 = HESAIxt32

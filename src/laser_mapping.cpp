@@ -1797,7 +1797,6 @@ void PointLio::timerMain() {
     if (flg_first_scan) {
       first_lidar_time = Measures.lidar_beg_time;
       flg_first_scan   = false;
-      cout << "first lidar time" << first_lidar_time << endl;
     }
 
     if (flg_reset) {
