@@ -36,6 +36,7 @@
 #include <mrs_lib/subscriber_handler.h>
 #include <mrs_lib/attitude_converter.h>
 #include <mrs_lib/timer_handler.h>
+#include <mrs_lib/transform_broadcaster.h>
 
 //}
 
@@ -101,6 +102,7 @@ private:
   shared_ptr<Preprocess> p_pre;
   double                 time_lag_imu_to_lidar = 0.0;
   std::string            uav_name;
+  bool                   _publish_fcu_tf_;
 
   // | ------------------------- common ------------------------- |
 
@@ -316,9 +318,13 @@ private:
 
   // | ------------------------- timers ------------------------- |
 
-  std::shared_ptr<mrs_lib::ThreadTimer> timer_main_;
+  std::shared_ptr<mrs_lib::ROSTimer> timer_main_;
 
   void timerMain();
+
+  // | ------------------ transform broadcaster ----------------- |
+
+  std::shared_ptr<mrs_lib::TransformBroadcaster> tf_broadcaster_;
 };
 
 PointLio *PointLio::instance = nullptr;
@@ -433,6 +439,7 @@ void PointLio::initialize() {
   param_loader.loadParam("publish/path/diff_R", path_diff_R);                                                   // 0.1
   param_loader.loadParam("publish/scan_publish_en", scan_pub_en);                                               // 1
   param_loader.loadParam("publish/scan_bodyframe_pub_en", scan_body_pub_en);                                    // 1
+  param_loader.loadParam("publish/tf/fcu", _publish_fcu_tf_);                                                   // "false"
   param_loader.loadParam("runtime_pos_log_enable", runtime_pos_log);                                            // 0
   param_loader.loadParam("uav_name", uav_name);                                                                 // ""
 
@@ -511,11 +518,15 @@ void PointLio::initialize() {
   sh_pc_    = mrs_lib::SubscriberHandler<sensor_msgs::msg::PointCloud2>(shopts, "~/pc_in", &PointLio::callbackStandardPC, this);
   sh_livox_ = mrs_lib::SubscriberHandler<livox_ros_driver2::msg::CustomMsg>(shopts, "~/livox_in", &PointLio::callbackLivox, this);
 
+  // | ------------------ transform broadcaster ----------------- |
+
+  tf_broadcaster_ = std::make_shared<mrs_lib::TransformBroadcaster>(node_);
+
   // | ------------------------ old main ------------------------ |
 
   cout << "lidar_type: " << lidar_type << endl;
   init_frame = uav_name + "/" + "point_lio_origin";
-  odom_frame = uav_name + "/" + "point_lio_odom";
+  odom_frame = uav_name + "/" + "fcu";
 
   /* path.header.stamp    = ros::Time().fromSec(lidar_end_time); */
 
@@ -581,7 +592,7 @@ void PointLio::initialize() {
   {
     std::function<void()> callback_fcn = std::bind(&PointLio::timerMain, this);
 
-    timer_main_ = std::make_shared<mrs_lib::ThreadTimer>(timer_opts_start, rclcpp::Rate(main_timer_rate_, clock_), callback_fcn);
+    timer_main_ = std::make_shared<mrs_lib::ROSTimer>(timer_opts_start, rclcpp::Rate(main_timer_rate_, clock_), callback_fcn);
   }
 
   // | --------------------- finish the init -------------------- |
@@ -776,7 +787,7 @@ void PointLio::h_model_input(state_input &s, esekfom::dyn_share_modified<double>
     p_world << point_world_j.x, point_world_j.y, point_world_j.z;
 
     {
-      auto &points_near = Nearest_Points[idx + j + 1];
+      PointVector &points_near = Nearest_Points[idx + j + 1];
 
       ikdtree.Nearest_Search(point_world_j, NUM_MATCH_POINTS, points_near, pointSearchSqDis, 2.236);  // 1.0); //, 3.0); // 2.236;
 
@@ -855,7 +866,7 @@ void PointLio::h_model_output(state_output &s, esekfom::dyn_share_modified<doubl
     p_world << point_world_j.x, point_world_j.y, point_world_j.z;
 
     {
-      auto &points_near = Nearest_Points[idx + j + 1];
+      PointVector &points_near = Nearest_Points[idx + j + 1];
 
       ikdtree.Nearest_Search(point_world_j, NUM_MATCH_POINTS, points_near, pointSearchSqDis, 2.236);
 
@@ -1712,6 +1723,23 @@ void PointLio::publish_odometry() {
 
   set_odomtwist(odomAftMapped.twist.twist, q_world);
   ph_odom_aft_mapped_.publish(odomAftMapped);
+
+  if (_publish_fcu_tf_) {
+
+    geometry_msgs::msg::TransformStamped tf;
+
+    tf.header.stamp    = odomAftMapped.header.stamp;
+    tf.header.frame_id = init_frame;
+    tf.child_frame_id  = odom_frame;
+
+    tf.transform.translation.x = odomAftMapped.pose.pose.position.x;
+    tf.transform.translation.y = odomAftMapped.pose.pose.position.y;
+    tf.transform.translation.z = odomAftMapped.pose.pose.position.z;
+
+    tf.transform.rotation = mrs_lib::AttitudeConverter(odomAftMapped.pose.pose.orientation);
+
+    tf_broadcaster_->sendTransform(tf);
+  }
 
   accAftMapped.header = odomAftMapped.header;
   set_acc(accAftMapped.vector);

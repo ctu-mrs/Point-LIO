@@ -255,7 +255,13 @@ void KD_TREE<PointType>::multi_thread_rebuild()
             }
             KD_TREE_NODE *old_root_node = (*Rebuild_Ptr);
             father_ptr = (*Rebuild_Ptr)->father_ptr;
-            PointVector().swap(Rebuild_PCL_Storage);
+
+            // this used to be here and it caused double free and similar segfaults
+            // PointVector().swap(Rebuild_PCL_Storage);
+            if (!Rebuild_PCL_Storage.empty()) {
+              Rebuild_PCL_Storage.clear();
+            }
+
             // Lock Search
             pthread_mutex_lock(&search_flag_mutex);
             while (search_mutex_counter != 0)
@@ -427,7 +433,13 @@ void KD_TREE<PointType>::Nearest_Search(PointType point, int k_nearest, PointVec
 {
     MANUAL_HEAP q(2 * k_nearest);
     q.clear();
-    vector<float>().swap(Point_Distance);
+
+    // this used to be here and it caused double free and similar segfaults
+    // vector<float>().swap(Point_Distance);
+    if (!Point_Distance.empty()) {
+      Point_Distance.clear();
+    }
+
     if (Rebuild_Ptr == nullptr || *Rebuild_Ptr != Root_Node)
     {
         Search(Root_Node, k_nearest, point, q, max_dist);
@@ -449,7 +461,13 @@ void KD_TREE<PointType>::Nearest_Search(PointType point, int k_nearest, PointVec
         pthread_mutex_unlock(&search_flag_mutex);
     }
     int k_found = min(k_nearest, int(q.size()));
-    PointVector().swap(Nearest_Points);
+
+    // this used to be here and it caused double free and similar segfaults
+    // PointVector().swap(Nearest_Points);
+    if (!Nearest_Points.empty()) {
+      Nearest_Points.clear();
+    }
+
     vector<float>().swap(Point_Distance);
     for (int i = 0; i < k_found; i++)
     {
@@ -497,7 +515,13 @@ int KD_TREE<PointType>::Add_Points(PointVector &PointToAdd, bool downsample_on)
             mid_point.x = Box_of_Point.vertex_min[0] + (Box_of_Point.vertex_max[0] - Box_of_Point.vertex_min[0]) / 2.0;
             mid_point.y = Box_of_Point.vertex_min[1] + (Box_of_Point.vertex_max[1] - Box_of_Point.vertex_min[1]) / 2.0;
             mid_point.z = Box_of_Point.vertex_min[2] + (Box_of_Point.vertex_max[2] - Box_of_Point.vertex_min[2]) / 2.0;
-            PointVector().swap(Downsample_Storage);
+
+            // this used to be here and it caused double free and similar segfaults
+            /* PointVector().swap(Downsample_Storage); */
+            if (!Downsample_Storage.empty()) {
+              Downsample_Storage.clear();
+            }
+
             Search_by_range(Root_Node, Box_of_Point, Downsample_Storage);
             min_dist = calc_dist(PointToAdd[i], mid_point);
             downsample_result = PointToAdd[i];

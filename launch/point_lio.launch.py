@@ -13,6 +13,7 @@ from launch.substitutions import (
         PathJoinSubstitution,
         EnvironmentVariable,
         )
+import sys
 
 import launch
 
@@ -203,7 +204,8 @@ def generate_launch_description():
         output="screen",
         #prefix='xterm -e gdb -ex run --args',
         # prefix='gdb -ex run --args',
-        # prefix='valgrind --tool=massif',
+        # prefix='valgrind --leak-check=yes',
+        # prefix=['debug_roslaunch ' + os.ttyname(sys.stdout.fileno())],
         composable_node_descriptions=[node],
         parameters=[
             {'use_intra_process_comms': True},

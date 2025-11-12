@@ -71,6 +71,10 @@ odometry:
   publish_odometry_without_downsample: false
 
 publish:
+
+  tf:
+    fcu: true
+
   path:
     enable: true                 # false: close the path output
     diff_t: 0.1
