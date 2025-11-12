@@ -820,6 +820,7 @@ void PointLio::h_model_input(state_input &s, esekfom::dyn_share_modified<double>
   ekfom_data.h_x     = Eigen::MatrixXd::Zero(effect_num_k, 12);
   ekfom_data.z.resize(effect_num_k);
   int m = 0;
+
   for (int j = 0; j < time_seq[k]; j++) {
     if (point_selected_surf[idx + j + 1]) {
       V3D norm_vec(normvec->points[j].x, normvec->points[j].y, normvec->points[j].z);
@@ -1162,8 +1163,10 @@ void PointLio::callbackStandardPC(const sensor_msgs::msg::PointCloud2::ConstShar
       // cout << "check time:" << ptr->points[i].curvature << endl;
       //
       if (ptr->points[i].curvature / double(1000) + rclcpp::Time(msg->header.stamp).seconds() - time_div > cut_frame_time_interval) {
+
         if (ptr_div->size() < 1)
           continue;
+
         PointCloudXYZI::Ptr ptr_div_i(new PointCloudXYZI());
         *ptr_div_i = *ptr_div;
         lidar_buffer.push_back(ptr_div_i);
@@ -2006,7 +2009,7 @@ void PointLio::timerMain() {
       double pcl_beg_time = Measures.lidar_beg_time;
       idx                 = -1;
 
-      for (size_t k = 0; k < time_seq.size(); k++) {
+      for (k = 0; k < time_seq.size(); k++) {
 
         PointType &point_body = feats_down_body->points[idx + time_seq[k]];
 
@@ -2152,7 +2155,7 @@ void PointLio::timerMain() {
       double pcl_beg_time = Measures.lidar_beg_time;
       idx                 = -1;
 
-      for (size_t k = 0; k < time_seq.size(); k++) {
+      for (k = 0; k < time_seq.size(); k++) {
 
         PointType &point_body = feats_down_body->points[idx + time_seq[k]];
         time_current          = point_body.curvature / 1000.0 + pcl_beg_time;
