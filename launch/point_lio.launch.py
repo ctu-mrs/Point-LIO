@@ -204,7 +204,7 @@ def generate_launch_description():
         output="screen",
         #prefix='xterm -e gdb -ex run --args',
         # prefix='gdb -ex run --args',
-        # prefix='valgrind --leak-check=yes',
+        # prefix='valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --log-file=/home/klaxalk/valgrind.txt',
         # prefix=['debug_roslaunch ' + os.ttyname(sys.stdout.fileno())],
         composable_node_descriptions=[node],
         parameters=[

@@ -29,7 +29,7 @@ preprocess:
   # 5 = plain simulation without additional PCL data
   # 6 = gazebo simulation (x, y, z, intenzity, ring)
   # should be set in the preset file
-  # lidar_type: 5 
+  # lidar_type: 5
 
   scan_line: 64 # how many scan lines, set for velodyne, hesai, livox avia
   timestamp_unit: 3 # the unit of time/t field in the PointCloud2 rostopic: 0-second, 1-milisecond, 2-microsecond, 3-nanosecond.
@@ -61,10 +61,12 @@ mapping:
   gravity: [0.0, 0.0, -9.810] # [0.0, 9.810, 0.0] # gravity to be aligned
   gravity_init: [0.0, 0.0, -9.810] # [0.0, 9.810, 0.0] # # preknown gravity in the first IMU body frame, use when imu_en is false or start from a non-stationary state
 
+  # should be set in the preset file
   extrinsic_T: [0.0, 0.0, 0.0]
   extrinsic_R: [1, 0, 0,
                 0, 1, 0,
                 0, 0, 1]
+
   vel_cov: 20
 
 odometry:
@@ -73,7 +75,7 @@ odometry:
 publish:
 
   tf:
-    fcu: true
+    fcu: false
 
   path:
     enable: true                 # false: close the path output
