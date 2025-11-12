@@ -318,7 +318,7 @@ private:
 
   // | ------------------------- timers ------------------------- |
 
-  std::shared_ptr<mrs_lib::ROSTimer> timer_main_;
+  std::shared_ptr<mrs_lib::ThreadTimer> timer_main_;
 
   void timerMain();
 
@@ -592,7 +592,7 @@ void PointLio::initialize() {
   {
     std::function<void()> callback_fcn = std::bind(&PointLio::timerMain, this);
 
-    timer_main_ = std::make_shared<mrs_lib::ROSTimer>(timer_opts_start, rclcpp::Rate(main_timer_rate_, clock_), callback_fcn);
+    timer_main_ = std::make_shared<mrs_lib::ThreadTimer>(timer_opts_start, rclcpp::Rate(main_timer_rate_, clock_), callback_fcn);
   }
 
   // | --------------------- finish the init -------------------- |
