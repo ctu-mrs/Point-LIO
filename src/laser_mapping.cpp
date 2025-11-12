@@ -1348,6 +1348,8 @@ void PointLio::callbackIMU(const sensor_msgs::msg::Imu::ConstSharedPtr msg_in) {
 
 bool PointLio::sync_packages(MeasureGroup &meas) {
 
+  std::scoped_lock lock(mtx_buffer);
+
   if (!imu_en) {
 
     if (!lidar_buffer.empty()) {
