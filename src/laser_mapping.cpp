@@ -368,7 +368,13 @@ void PointLio::initialize() {
 
   if (custom_config_path != "") {
     RCLCPP_INFO(node_->get_logger(), "loading custom config '%s", custom_config_path.c_str());
-    param_loader.addYamlFile(custom_config_path);
+    bool succ = param_loader.addYamlFile(custom_config_path);
+
+    if (!succ) {
+      RCLCPP_ERROR(node_->get_logger(), "failed to load custom config");
+      rclcpp::shutdown();
+      exit(1);
+    }
   }
 
   // load preset
@@ -378,12 +384,26 @@ void PointLio::initialize() {
 
   if (preset_path != "") {
     RCLCPP_INFO(node_->get_logger(), "loading preset config '%s", preset_path.c_str());
-    param_loader.addYamlFile(preset_path);
+    bool succ = param_loader.addYamlFile(preset_path);
+
+    if (!succ) {
+      RCLCPP_ERROR(node_->get_logger(), "failed to load preset");
+      rclcpp::shutdown();
+      exit(1);
+    }
   }
 
   // load other configs
 
-  param_loader.addYamlFileFromParam("config");
+  {
+    bool succ = param_loader.addYamlFileFromParam("config");
+
+    if (!succ) {
+      RCLCPP_ERROR(node_->get_logger(), "failed to load config");
+      rclcpp::shutdown();
+      exit(1);
+    }
+  }
 
   //                                                                                                            // DEFAULTS FROM ORIGINAL C++ IMPLEMENTATION
   //                                                                                                            DOWN THERE...
