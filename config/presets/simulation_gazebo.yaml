@@ -8,4 +8,5 @@ preprocess:
   # 6 = gazebo simulation (x, y, z, intenzity, ring)
   lidar_type: 6
 
+  # this should only be used when the PointCloud has no timestamps which is this case
   scan_rate: 10 # [Hz]

@@ -28,13 +28,16 @@ preprocess:
   # 4 = HESAIxt32
   # 5 = plain simulation (FlightForge) without additional PCL data
   # 6 = gazebo simulation (x, y, z, intenzity, ring)
-  # should be set in the preset file
+  # - should be set in the preset file
   # lidar_type: 5
 
   scan_line: 64 # how many scan lines, set for velodyne, hesai, livox avia
   timestamp_unit: 3 # the unit of time/t field in the PointCloud2 rostopic: 0-second, 1-milisecond, 2-microsecond, 3-nanosecond.
   blind: 1.50 # ignore points closer than this
-  scan_rate: 10 # [Hz]
+
+  # this should only be used when the PointCloud has no timestamps which is this case
+  # - should be set in the preset file
+  # scan_rate: 10 # [Hz]
 
 mapping:
   imu_en: true
