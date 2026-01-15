@@ -4,6 +4,8 @@ preprocess:
   # 2 = velodyne
   # 3 = Ouster64
   # 4 = HESAIxt32
-  # 5 = plain simulation without additional PCL data
+  # 5 = plain simulation (FlightForge) without additional PCL data
   # 6 = gazebo simulation (x, y, z, intenzity, ring)
   lidar_type: 5
+
+  scan_rate: 10 # [Hz]
